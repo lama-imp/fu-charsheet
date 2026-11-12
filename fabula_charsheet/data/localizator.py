@@ -13,13 +13,13 @@ class Localizator:
         self.__translations = translations
 
     def get(self, lang: LangEnum):
-        return LocNamespace(root=self.__translations.get(lang, {}))
+        translations = self.__translations.get(lang) or self.__translations.get(self.default_language, {})
+        return LocNamespace(root=translations)
 
 
-def init_localizator(locals_directory: Path):
-    if st.session_state.get("localizator"):
-        return
-
+def load_translations(locals_directory: Path) -> dict[LangEnum, dict[str, str]]:
+    """Load and merge all locale YAML files into a {language: {key: value}} mapping.
+    """
     translations = {}
 
     def load_translations_from_dir(lang_dir: Path) -> dict:
@@ -57,13 +57,24 @@ def init_localizator(locals_directory: Path):
         if not lang_dir.is_dir():
             raise FileNotFoundError(f"Missing translations directory for {lang.value}")
 
-        lang_translations = load_translations_from_dir(lang_dir)
+        # Blank or null entries (e.g. untranslated stubs) fall back to English instead of overriding it
+        lang_translations = {
+            key: value for key, value in load_translations_from_dir(lang_dir).items()
+            if isinstance(value, str) and value.strip()
+        }
 
         merged_with_fallback = {**english_translations, **lang_translations}
 
         translations[lang] = merged_with_fallback
 
-    st.session_state.localizator = Localizator(translations)
+    return translations
+
+
+def init_localizator(locals_directory: Path):
+    if st.session_state.get("localizator"):
+        return
+
+    st.session_state.localizator = Localizator(load_translations(locals_directory))
 
 
 def select_local():
