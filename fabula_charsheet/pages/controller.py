@@ -37,6 +37,7 @@ from data.models import (
     Companion,
     CompanionSkillName,
     SPECIES_STARTING_SKILLS,
+    MAX_LEVEL,
 )
 
 if TYPE_CHECKING:
@@ -532,17 +533,37 @@ class CharacterController:
         except Exception as e:
             raise StateLoadError(state_path, e) from e
 
+    def can_level_up(self) -> bool:
+        return self.character.level < MAX_LEVEL
+
     def apply_levelup(self, skill: Skill, class_name: ClassName, new_class: CharClass | None, spells: list[Spell]):
-        self.character.level += 1
+        """Gain one level: one level in `skill`, which belongs either to a class the
+        character already has or to `new_class`, and the spells it grants (added to
+        the spells already known, never replacing them).
+
+        Everything is checked before anything changes, so a refused level-up
+        leaves the character untouched."""
+        if not self.can_level_up():
+            raise ValueError(self.loc.error_invalid_level.format(level=self.character.level + 1))
+
         if self.is_class_added(class_name):
-            for char_class in self.character.classes:
-                if char_class.get_skill(skill.name):
-                    char_class.levelup_skill(skill.name)
-                    break
-        elif new_class is not None:
+            target_class = self.character.get_class(class_name)
+        elif new_class is not None and new_class.name == class_name:
+            target_class = new_class
+        else:
+            raise ValueError(self.loc.error_levelup_skill_unavailable.format(skill=skill.name))
+
+        target_skill = target_class.get_skill(skill.name)
+        if target_skill is None or target_skill.current_level >= target_skill.max_level:
+            raise ValueError(self.loc.error_levelup_skill_unavailable.format(skill=skill.name))
+
+        if target_class is new_class:
             self.add_class(new_class)
+        target_class.levelup_skill(skill.name)
+        self.character.level += 1
         if skill.can_add_spell:
-            self.character.spells[class_name] = spells
+            for spell in spells:
+                self.add_spell(spell, class_name)
 
     def add_heroic_skill(self, skill: HeroicSkill):
         self.character.heroic_skills.append(skill)

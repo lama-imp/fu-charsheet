@@ -1,4 +1,7 @@
+import pytest
+
 from data.models import (
+    MAX_LEVEL,
     Accessory,
     CharClass,
     ClassName,
@@ -21,14 +24,55 @@ def test_apply_levelup_increments_level_and_levels_up_existing_skill(controller)
     assert controller.character.classes[0].get_skill_level("dodge") == 2
 
 
-def test_apply_levelup_adds_new_class(controller):
+def test_apply_levelup_adds_new_class_with_the_chosen_skill_leveled(controller):
     controller.character.level = 5
     controller.character.classes = []
-    new_class = CharClass(name=ClassName.guardian)
-    skill = Skill(name="unrelated_skill")
+    skill = Skill(name="fortress", current_level=0, max_level=3)
+    new_class = CharClass(name=ClassName.guardian, skills=[skill])
     controller.apply_levelup(skill, ClassName.guardian, new_class, [])
     assert controller.character.level == 6
     assert controller.is_class_added(ClassName.guardian)
+    assert controller.character.get_class(ClassName.guardian).class_level() == 1
+
+
+def test_apply_levelup_keeps_level_and_skill_total_in_sync(controller):
+    rogue_skill = Skill(name="dodge", current_level=5, max_level=5)
+    controller.character.classes = [CharClass(name=ClassName.rogue, skills=[rogue_skill])]
+    controller.character.level = 5
+    assert controller.character.get_n_skill() == controller.character.level
+    new_skill = Skill(name="fortress", current_level=0, max_level=3)
+    controller.apply_levelup(new_skill, ClassName.guardian, CharClass(name=ClassName.guardian, skills=[new_skill]), [])
+    assert controller.character.get_n_skill() == controller.character.level == 6
+
+
+def test_apply_levelup_refuses_skill_not_in_any_class_and_changes_nothing(controller):
+    controller.character.level = 5
+    controller.character.classes = []
+    new_class = CharClass(name=ClassName.guardian, skills=[Skill(name="fortress", max_level=3)])
+    with pytest.raises(ValueError):
+        controller.apply_levelup(Skill(name="unrelated_skill"), ClassName.guardian, new_class, [])
+    assert controller.character.level == 5
+    assert controller.character.classes == []
+
+
+def test_apply_levelup_refuses_maxed_skill(controller):
+    skill = Skill(name="dodge", current_level=5, max_level=5)
+    controller.character.classes = [CharClass(name=ClassName.rogue, skills=[skill])]
+    controller.character.level = 5
+    with pytest.raises(ValueError):
+        controller.apply_levelup(skill, ClassName.rogue, None, [])
+    assert controller.character.level == 5
+
+
+def test_apply_levelup_refuses_past_max_level(controller):
+    skill = Skill(name="dodge", current_level=1, max_level=5)
+    controller.character.classes = [CharClass(name=ClassName.rogue, skills=[skill])]
+    controller.character.level = MAX_LEVEL
+    assert not controller.can_level_up()
+    with pytest.raises(ValueError):
+        controller.apply_levelup(skill, ClassName.rogue, None, [])
+    assert controller.character.level == MAX_LEVEL
+    assert controller.character.classes[0].get_skill_level("dodge") == 1
 
 
 def test_apply_levelup_sets_spells_when_skill_grants_them(controller):
@@ -38,6 +82,16 @@ def test_apply_levelup_sets_spells_when_skill_grants_them(controller):
     spells = [Spell(name="fireball", mp_cost=10)]
     controller.apply_levelup(skill, ClassName.elementalist, None, spells)
     assert controller.character.spells[ClassName.elementalist] == spells
+
+
+def test_apply_levelup_adds_spells_to_the_ones_already_known(controller):
+    controller.character.level = 5
+    skill = Skill(name="elemental_magic", current_level=2, max_level=10, can_add_spell=True)
+    controller.character.classes = [CharClass(name=ClassName.elementalist, skills=[skill])]
+    known = [Spell(name="fireball", mp_cost=10), Spell(name="comet", mp_cost=50)]
+    controller.character.spells[ClassName.elementalist] = list(known)
+    controller.apply_levelup(skill, ClassName.elementalist, None, [Spell(name="glacier", mp_cost=10)])
+    assert [s.name for s in controller.character.spells[ClassName.elementalist]] == ["fireball", "comet", "glacier"]
 
 
 # --- can_add_heroic_skill ---

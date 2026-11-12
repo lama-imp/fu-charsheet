@@ -4,7 +4,7 @@ import streamlit as st
 
 from config import MAX_ATTRIBUTE_VALUE
 from pages.controller import CharacterController, ClassController
-from data.models import AttributeName, Weapon, GripType, WeaponCategory, \
+from data.models import CharClass, AttributeName, Weapon, GripType, WeaponCategory, \
     WeaponRange, ClassName, SpellTarget, Spell, SpellDuration, DamageType, Armor, Shield, Accessory, Item, \
     Skill, LocNamespace, HeroicSkill, Species, ChimeristSpell, Therioform, HeroicSkillName, Dance, Arcanum, Invention, \
     Status, Companion, CompanionAttack, CompanionSkill, CompanionSkillName, SPECIES_STARTING_SKILLS, \
@@ -62,8 +62,19 @@ def level_up(controller: CharacterController, loc: LocNamespace):
     if controller.can_add_class():
         add_new_class(controller, class_controller, loc, mode="addition")
 
-    if st.session_state.selected_hero_skills:
-        selected_skill: Skill = st.session_state.selected_hero_skills[0]
+    selected_skill: Skill | None = None
+    selected_class_name: ClassName | None = None
+    new_class: CharClass | None = None
+    can_confirm = len(st.session_state.selected_hero_skills) == 1
+
+    if can_confirm:
+        selected_skill = st.session_state.selected_hero_skills[0]
+        selected_class_name = c.COMPENDIUM.get_class_name_from_skill(selected_skill)
+        if not controller.is_class_added(selected_class_name):
+            new_class = class_controller.char_class
+            # A class with a choice of bonus (e.g. Dancer) needs one picked first.
+            if new_class is None or new_class.class_bonus is None or isinstance(new_class.class_bonus, list):
+                can_confirm = False
 
         if selected_skill.can_add_spell:
             class_name = c.COMPENDIUM.get_class_name_from_skill(selected_skill)
@@ -78,21 +89,28 @@ def level_up(controller: CharacterController, loc: LocNamespace):
             total_class_spells = len(st.session_state.class_spells)
 
             if total_class_spells != max_n_spells:
+                can_confirm = False
                 st.error(loc.error_class_select_exact_spells.format(
                     max_n_spells=max_n_spells,
                     casting_skill=selected_skill.localized_name(loc)
                 ))
 
-    if st.button(loc.confirm_button, disabled=(len(st.session_state.selected_hero_skills) != 1)):
-        selected_class_name = c.COMPENDIUM.get_class_name_from_skill(selected_skill)
-        new_class = class_controller.char_class if not controller.is_class_added(selected_class_name) else None
-        controller.apply_levelup(
-            skill=selected_skill,
-            class_name=selected_class_name,
-            new_class=new_class,
-            spells=list(st.session_state.class_spells),
-        )
-        st.rerun()
+    if not controller.can_level_up():
+        can_confirm = False
+        st.error(loc.error_invalid_level.format(level=controller.character.level + 1))
+
+    if st.button(loc.confirm_button, disabled=not can_confirm):
+        try:
+            controller.apply_levelup(
+                skill=selected_skill,
+                class_name=selected_class_name,
+                new_class=new_class,
+                spells=list(st.session_state.class_spells),
+            )
+        except ValueError as e:
+            st.error(str(e))
+        else:
+            st.rerun()
 
 
 def add_spell(controller: CharacterController, class_name: ClassName, loc: LocNamespace):

@@ -62,7 +62,9 @@ def add_new_class(
 
             can_add_skill_number = character_controller.can_add_skill_number()
 
-            if class_controller.char_class.class_level() < 1:
+            if mode == "addition":
+                pass  # the level-up dialog validates the single skill picked
+            elif class_controller.char_class.class_level() < 1:
                 class_not_ready = True
                 st.error(loc.error_class_need_skill)
             elif can_add_skill_number < 0:

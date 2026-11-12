@@ -53,12 +53,15 @@ class CharSpecial(BaseModel):
     def get_special(self, attribute: str):
         return getattr(self, attribute, None)
 
+MAX_LEVEL = 60
+
+
 class Character(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
     name: str = ""
-    level: conint(ge=1, le=60) = 5
+    level: conint(ge=1, le=MAX_LEVEL) = 5
     identity: str = ""
     theme: str = ""
     origin: str = ""
@@ -74,9 +77,9 @@ class Character(BaseModel):
     bonds: list[Bond] = list()
 
     def set_level(self, level: int, loc: LocNamespace):
-        if not 1 <= level <= 60:
+        if not 1 <= level <= MAX_LEVEL:
             msg = loc.error_invalid_level.format(level=level) if hasattr(loc,
-                                                                         "error_invalid_level") else f"Level {level} should be between 1 and 60."
+                                                                         "error_invalid_level") else f"Level {level} should be between 1 and {MAX_LEVEL}."
             raise InvalidCharacterField(msg)
         self.level = level
 

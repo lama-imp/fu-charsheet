@@ -18,3 +18,4 @@ error_character_avatar_permission: "You do not have permission to delete this ch
 page_attributes_sum_error: "Sum of your attributes should be equal to 32."
 error_loading_state: "Could not load the saved state ({error}). Starting with a fresh one."
 adding_bond_error: "To add a Bond you must provide a name and select at least one emotion."
+error_levelup_skill_unavailable: "The skill '{skill}' cannot be leveled up for this character."

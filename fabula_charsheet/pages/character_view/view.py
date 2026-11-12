@@ -133,7 +133,7 @@ def build(controller: CharacterController):
                     st.write(f":red[{loc.page_view_crisis_text}]")
                 else:
                     st.write("")
-                if st.button(loc.page_view_level_up_button):
+                if st.button(loc.page_view_level_up_button, disabled=not controller.can_level_up()):
                     level_up_dialog(controller, loc)
                 if controller.can_add_heroic_skill():
                     if st.button(loc.heroic_skill_button):
