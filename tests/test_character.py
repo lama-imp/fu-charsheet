@@ -18,10 +18,10 @@ def _setup_loc(streamlit_stub, tmp_path):
         "error_theme_empty": "Theme should not be empty.",
         "error_origin_empty": "Origin should not be empty."
     }
-    (en_dir / 'base.yaml').write_text(json.dumps(content))
+    (en_dir / 'base.yaml').write_text(json.dumps(content), encoding="utf-8")
     ru_dir = tmp_path / 'ru'
     ru_dir.mkdir()
-    (ru_dir / 'base.yaml').write_text('{}')
+    (ru_dir / 'base.yaml').write_text('{}', encoding="utf-8")
     init_localizator(tmp_path)
     return streamlit_stub.session_state['localizator'].get(LangEnum.en)
 

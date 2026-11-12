@@ -6,7 +6,7 @@ from data.models import Character
 
 def test_saved_characters_init(tmp_path):
     saved_characters.SAVED_CHARS = None
-    (tmp_path / 'char.yaml').write_text('{"name": "Test"}')
+    (tmp_path / 'char.yaml').write_text('{"name": "Test"}', encoding="utf-8")
     saved_characters.init(tmp_path)
     assert saved_characters.SAVED_CHARS is not None
     assert saved_characters.SAVED_CHARS.char_list
@@ -14,9 +14,9 @@ def test_saved_characters_init(tmp_path):
 
 def test_saved_characters_init_skips_broken_files(tmp_path):
     saved_characters.SAVED_CHARS = None
-    (tmp_path / 'good.yaml').write_text('{"name": "Good"}')
-    (tmp_path / 'broken.yaml').write_text('name: [unclosed')
-    (tmp_path / 'invalid.yaml').write_text('level: 999')
+    (tmp_path / 'good.yaml').write_text('{"name": "Good"}', encoding="utf-8")
+    (tmp_path / 'broken.yaml').write_text('name: [unclosed', encoding="utf-8")
+    (tmp_path / 'invalid.yaml').write_text('level: 999', encoding="utf-8")
     saved_characters.init(tmp_path)
     assert [c.name for c in saved_characters.SAVED_CHARS.char_list] == ["Good"]
     assert sorted(p.name for p in saved_characters.SAVED_CHARS.failed_files) == ["broken.yaml", "invalid.yaml"]

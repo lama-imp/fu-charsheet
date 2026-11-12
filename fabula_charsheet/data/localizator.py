@@ -26,7 +26,7 @@ def load_translations(locals_directory: Path) -> dict[LangEnum, dict[str, str]]:
         merged_translations = {}
         key_origins = {}
         for yaml_file in sorted(lang_dir.rglob("*.yaml")):
-            with yaml_file.open(encoding="utf8") as f:
+            with yaml_file.open(encoding="utf-8") as f:
                 data = yaml.load(f, Loader=yaml.SafeLoader) or {}
                 if not isinstance(data, dict):
                     raise ValueError(f"Invalid YAML structure in {yaml_file}")
