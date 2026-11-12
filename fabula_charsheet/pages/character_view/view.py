@@ -123,7 +123,12 @@ def build(controller: CharacterController):
                 ))
                 st.markdown(f"**{loc.page_view_level}:** {controller.character.level}")
                 st.markdown(f"**{loc.page_view_theme}:** {controller.character.theme}")
-                st.number_input(loc.page_view_fabula_points, min_value=0)
+                controller.state.fabula_points = st.number_input(
+                    loc.page_view_fabula_points,
+                    min_value=0,
+                    value=controller.state.fabula_points,
+                    key=f"fabula-points-{controller.character.id}",
+                )
                 if controller.current_hp() <= controller.crisis_value():
                     st.write(f":red[{loc.page_view_crisis_text}]")
                 else:

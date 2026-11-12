@@ -3,7 +3,7 @@ import streamlit as st
 import config
 from data import saved_characters as s
 from data.models import Character, LocNamespace
-from pages.controller import CharacterController
+from pages.controller import CharacterController, StateLoadError
 from pages.utils import set_view_state, get_avatar_path, delete_character
 from pages.character_view.view_state import ViewState
 
@@ -43,8 +43,8 @@ def build(controller: CharacterController):
                     if st.button(loc.page_load_character_load_button, key=f"{char.id}-loader"):
                         try:
                             controller.load_character(char)
-                        except Exception as e:
-                            st.toast(e)
+                        except StateLoadError as e:
+                            st.toast(loc.error_loading_state.format(error=e.cause), icon="⚠️")
                         set_view_state(ViewState.view)
                 with delete_col:
                     if st.button(loc.page_load_character_delete_button, key=f"{char.id}-delete"):

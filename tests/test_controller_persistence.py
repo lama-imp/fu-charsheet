@@ -3,7 +3,8 @@ import types
 import pytest
 import yaml
 
-from data.models import Character
+from data.models import AttributeName, Character
+from pages.controller import StateLoadError
 
 
 @pytest.fixture(autouse=True)
@@ -68,11 +69,43 @@ def test_load_state_round_trips(controller, isolated_save_directories):
     assert controller.state.minus_mp == 3
 
 
-def test_load_state_missing_file_resets_state_and_raises(controller):
+def test_load_state_missing_file_starts_fresh_without_error(controller):
     controller.state.minus_hp = 99
-    with pytest.raises(Exception):
-        controller.load_state()
+    controller.load_state()  # a character that was never saved with a state
     assert controller.state.minus_hp == 0  # reset to a fresh CharState()
+
+
+def test_load_state_unreadable_file_resets_state_and_raises(controller, isolated_save_directories):
+    state_path = isolated_save_directories.states / f"{controller.character.id}.yaml"
+    state_path.write_text("minus_hp: [unclosed", encoding="utf-8")
+    controller.state.minus_hp = 99
+    with pytest.raises(StateLoadError) as excinfo:
+        controller.load_state()
+    assert excinfo.value.path == state_path
+    assert controller.state.minus_hp == 0
+
+
+def test_battle_state_round_trips_attribute_bonuses_and_fabula_points(controller, isolated_save_directories):
+    controller.state.improved_attributes.append(AttributeName.might)
+    controller.state.improved_attributes.append(AttributeName.insight)
+    controller.state.fabula_points = 4
+    controller.dump_state()
+    controller.load_state()
+    assert controller.state.improved_attributes == [AttributeName.might, AttributeName.insight]
+    assert controller.state.fabula_points == 4
+    # And saving again doesn't pile up entries.
+    controller.dump_state()
+    controller.load_state()
+    assert controller.state.improved_attributes == [AttributeName.might, AttributeName.insight]
+
+
+def test_load_state_drops_legacy_empty_attribute_entries(controller, isolated_save_directories):
+    legacy = "minus_hp: 2\nimproved_attributes:\n- {}\n- {}\n"
+    (isolated_save_directories.states / f"{controller.character.id}.yaml").write_text(legacy, encoding="utf-8")
+    controller.load_state()
+    assert controller.state.minus_hp == 2
+    assert controller.state.improved_attributes == []
+    assert controller.state.fabula_points == 0
 
 
 def test_dump_avatar_writes_image_bytes(controller, isolated_save_directories):
@@ -161,8 +194,7 @@ def test_load_state_reads_legacy_python_tags(controller, isolated_save_directori
 
 def test_load_character_works_on_a_copy(controller, isolated_save_directories):
     saved = Character(name="Frank", level=7)
-    with pytest.raises(Exception):  # no state file yet
-        controller.load_character(saved)
+    controller.load_character(saved)
     controller.character.level = 8
     assert saved.level == 7
 

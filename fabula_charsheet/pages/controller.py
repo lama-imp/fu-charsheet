@@ -46,6 +46,15 @@ if TYPE_CHECKING:
 from config import ATTRIBUTE_SUM_AT_LEVEL_20, ATTRIBUTE_SUM_AT_LEVEL_40
 
 
+class StateLoadError(Exception):
+    """The saved battle state exists but could not be read."""
+
+    def __init__(self, path: Path, cause: Exception):
+        super().__init__(f"{path.name}: {cause}")
+        self.path = path
+        self.cause = cause
+
+
 class CharacterController:
     def __init__(self, loc: LocNamespace):
         self.character = Character()
@@ -511,12 +520,17 @@ class CharacterController:
         self.mark_saved()
 
     def load_state(self):
+        """Load the saved battle state. A character that has never been saved
+        with a state simply starts with a fresh one; a state file that exists
+        but can't be read raises StateLoadError (and also starts fresh)."""
+        state_path = Path(SAVED_STATES_DIRECTORY, f"{self.character.id}.yaml")
+        self.state = CharState()
+        if not state_path.exists():
+            return
         try:
-            raw_state = load_yaml(Path(SAVED_STATES_DIRECTORY, f"{self.character.id}.yaml"))
-            self.state = CharState(**dict(raw_state))
-        except Exception:
-            self.state = CharState()
-            raise Exception("Unable to load state. Switching to default.")
+            self.state = CharState(**dict(load_yaml(state_path)))
+        except Exception as e:
+            raise StateLoadError(state_path, e) from e
 
     def apply_levelup(self, skill: Skill, class_name: ClassName, new_class: CharClass | None, spells: list[Spell]):
         self.character.level += 1
