@@ -295,30 +295,24 @@ class CharacterController:
                     # both occupied → replace main hand by default
                     equipped.main_hand = item
         elif isinstance(item, Shield):
-            # --- Dual Shieldbearer ---
-            if self.has_skill("dual_shieldbearer"):
-                if equipped.off_hand is None:
-                    equipped.off_hand = item
-                elif isinstance(equipped.off_hand, Shield):
-                    equipped.main_hand = Weapon(
-                        name="twin_shields",
-                        cost=item.cost,
-                        accuracy=[AttributeName.might, AttributeName.might],
-                        bonus_damage=5,
-                        bonus_defense=item.bonus_defense,
-                        bonus_magic_defense=item.bonus_magic_defense,
-                    )
-                else:
-                    equipped.off_hand = item
-
-            # --- Monkey Grip ---
-            elif self.character.has_heroic_skill(HeroicSkillName.monkey_grip):
-                equipped.off_hand = item
-
-            # --- Normal char ---
+            # --- Dual Shieldbearer: a second shield becomes the Twin Shields weapon ---
+            if (self.has_skill("dual_shieldbearer")
+                    and isinstance(equipped.off_hand, Shield)
+                    and equipped.off_hand is not item):
+                equipped.main_hand = Weapon(
+                    name="twin_shields",
+                    cost=item.cost,
+                    accuracy=[AttributeName.might, AttributeName.might],
+                    bonus_damage=5,
+                    bonus_defense=item.bonus_defense,
+                    bonus_magic_defense=item.bonus_magic_defense,
+                )
             else:
                 equipped.off_hand = item
-                if (isinstance(equipped.main_hand, Weapon)
+                # A shield takes a hand: without Monkey Grip a two-handed
+                # weapon can't stay in the main hand.
+                if (not self.character.has_heroic_skill(HeroicSkillName.monkey_grip)
+                        and isinstance(equipped.main_hand, Weapon)
                         and equipped.main_hand.grip_type == "two_handed"):
                     equipped.main_hand = None
 
@@ -341,12 +335,26 @@ class CharacterController:
     def add_item(self, item: Item):
         self.character.inventory.backpack.add_item(item)
 
+    def is_equipped(self, item: Item) -> bool:
+        # Identity, not equality: of two identical daggers only the one in hand counts.
+        return any(equipped is item for equipped in self.equipped_items())
+
     def remove_item(self, item: Item):
         equipped = self.character.inventory.equipped
         for category in ("main_hand", "off_hand", "armor", "accessory"):
-            if getattr(equipped, category) == item:
+            if getattr(equipped, category) is item:
                 setattr(equipped, category, None)
         self.character.inventory.backpack.remove_item(item)
+
+    def can_afford(self, cost: int) -> bool:
+        return self.character.inventory.zenit >= cost
+
+    def spend_zenit(self, amount: int):
+        if amount < 0:
+            raise ValueError(amount)
+        if not self.can_afford(amount):
+            raise ValueError(self.loc.error_not_enough_zenit.format(cost=amount, zenit=self.character.inventory.zenit))
+        self.character.inventory.zenit -= amount
 
     def load_character(self, character: Character):
         """Start working on a copy of a saved character, so unsaved edits never
@@ -620,17 +628,32 @@ class CharacterController:
                     char_class=ClassName.elementalist,
                 ), ClassName.elementalist)
 
+    # Stat bonuses some qualities add to the item they are put on.
+    QUALITY_EFFECTS: dict[str, dict[str, int]] = {
+        "amulet": {"bonus_magic_defense": 1},
+        "bulwark": {"bonus_defense": 1},
+        "omnishield": {"bonus_defense": 1, "bonus_magic_defense": 1},
+        "initiative_up": {"bonus_initiative": 4},
+    }
+
+    def _change_quality_effects(self, item: Item, quality_name: str, sign: int):
+        for field_name, bonus in self.QUALITY_EFFECTS.get(quality_name, {}).items():
+            setattr(item, field_name, getattr(item, field_name) + sign * bonus)
+
     def apply_quality_effects(self, item: Item, quality: Quality):
-        match quality.name:
-            case "amulet":
-                item.bonus_magic_defense += 1
-            case "bulwark":
-                item.bonus_defense += 1
-            case "omnishield":
-                item.bonus_defense += 1
-                item.bonus_magic_defense += 1
-            case "initiative_up":
-                item.bonus_initiative += 4
+        self._change_quality_effects(item, quality.name, +1)
+
+    def upgrade_item(self, item: Item, quality: Quality, detail: list):
+        """Give `item` a new quality, paying its cost. The old quality's
+        bonuses are taken away first, so replacing a quality never stacks."""
+        self.spend_zenit(quality.cost)
+        for category in ("main_hand", "off_hand", "armor", "accessory"):
+            if getattr(self.character.inventory.equipped, category) is item:
+                self.unequip_item(category)
+        self._change_quality_effects(item, item.quality, -1)
+        item.quality = quality.name
+        item.quality_detail = detail
+        self.apply_quality_effects(item, quality)
 
     def chimerist_max_spells(self) -> int:
         max_n = (self.get_skill_level(ClassName.chimerist, "spell_mimic") or 0) + 2

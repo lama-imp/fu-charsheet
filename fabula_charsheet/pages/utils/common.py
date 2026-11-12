@@ -83,7 +83,10 @@ def add_item_as(item: Item, inventory: Inventory, loc: LocNamespace):
     new_name = st.text_input(loc.page_equipment_write_new_name)
     button_label = loc.page_equipment_add_item_as_button.format(name=new_name)
 
-    if st.button(button_label, disabled=not new_name):
+    cannot_afford = inventory.zenit < item.cost
+    if cannot_afford:
+        st.warning(loc.error_not_enough_zenit.format(cost=item.cost, zenit=inventory.zenit), icon="💰")
+    if st.button(button_label, disabled=not new_name or cannot_afford):
         item = deepcopy(item)
         item.name = new_name
         if isinstance(item, Armor):
@@ -181,18 +184,23 @@ def upgrade_item(controller: CharacterController, item: Item, loc: LocNamespace)
 
     selected_quality, detail = select_quality(available_qualities, loc)
 
+    cannot_afford = selected_quality is not None and not controller.can_afford(selected_quality.cost)
+    if cannot_afford:
+        st.warning(loc.error_not_enough_zenit.format(
+            cost=selected_quality.cost, zenit=controller.character.inventory.zenit
+        ), icon="💰")
+
     if st.button(
             loc.upgrade_button,
             key=f'{item.name}-upgrade-confirm',
-            disabled=not selected_quality,
+            disabled=not selected_quality or cannot_afford,
     ):
-        for category in ("main_hand", "off_hand", "armor", "accessory"):
-            if item == getattr(controller.character.inventory.equipped, category):
-                controller.unequip_item(category)
-        item.quality = selected_quality.name
-        item.quality_detail = detail
-        controller.apply_quality_effects(item, selected_quality)
-        st.rerun()
+        try:
+            controller.upgrade_item(item, selected_quality, detail)
+        except ValueError as e:
+            st.error(str(e))
+        else:
+            st.rerun()
 
 
 def select_quality(

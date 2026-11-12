@@ -114,6 +114,7 @@ def loc():
         "error_unexpected_class_type": "Unexpected class type: {class_type}",
         "error_equipping_item": "Cannot equip this item.",
         "error_equipping_martial": "Cannot use this martial item.",
+        "error_not_enough_zenit": "Costs {cost}, you have {zenit}.",
         "error_invalid_level": "Level {level} should be between 1 and 60.",
         "error_levelup_skill_unavailable": "Skill {skill} cannot be leveled up.",
     })

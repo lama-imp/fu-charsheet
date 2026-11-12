@@ -454,8 +454,9 @@ def build(controller: CharacterController):
                     st.rerun()
             with c3:
                 st.write("")
-                if st.button("", icon=":material/remove:", key="subtract_zenit"):
-                    controller.character.inventory.zenit -= zenit_input
+                if st.button("", icon=":material/remove:", key="subtract_zenit",
+                             disabled=not controller.can_afford(zenit_input)):
+                    controller.spend_zenit(zenit_input)
                     st.rerun()
 
         backpack = controller.character.inventory.backpack

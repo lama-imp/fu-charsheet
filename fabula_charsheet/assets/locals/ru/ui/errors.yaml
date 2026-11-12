@@ -19,3 +19,4 @@ page_attributes_sum_error: "Сумма ваших атрибутов должн�
 error_loading_state: "Не удалось загрузить сохраненное состояние ({error}). Начинаем с чистого."
 adding_bond_error: "Чтобы добавить Связь, необходимо указать имя и выбрать хотя бы одну эмоцию."
 error_levelup_skill_unavailable: "Умение '{skill}' нельзя повысить этому персонажу."
+error_not_enough_zenit: "Недостаточно зенитов: нужно {cost}, у вас {zenit}."

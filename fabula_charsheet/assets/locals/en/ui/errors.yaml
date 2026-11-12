@@ -21,3 +21,4 @@ adding_bond_error: "To add a Bond you must provide a name and select at least on
 error_levelup_skill_unavailable: "The skill '{skill}' cannot be leveled up for this character."
 error_equipping_martial: "None of your classes lets you use this martial item."
 error_class_select_bonus: "Choose which bonus this class gives."
+error_not_enough_zenit: "Not enough zenit: this costs {cost}, you have {zenit}."

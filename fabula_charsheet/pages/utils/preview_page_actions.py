@@ -24,8 +24,7 @@ def unequip_item(controller, category: str):
 
 
 def disable_equip_button(controller, item: Item) -> bool:
-    equipped_items = controller.equipped_items()
-    return item in equipped_items
+    return controller.is_equipped(item)
 
 
 def avatar_uploader(loc: LocNamespace):

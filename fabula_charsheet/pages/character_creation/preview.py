@@ -215,7 +215,7 @@ def build(controller: CharacterController):
                                  key=f'{item.name}-{i}-equip',
                                  disabled=(
                                      not controller.can_equip_martial(item)
-                                     or item in controller.equipped_items()
+                                     or controller.is_equipped(item)
                                  )):
                         equip_item(controller, item)
                         st.rerun()

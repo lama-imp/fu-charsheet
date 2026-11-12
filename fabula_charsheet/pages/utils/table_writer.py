@@ -448,7 +448,7 @@ class WeaponTableWriter(TableWriter):
             upgrade_item(self.controller, item, self.loc)
 
         cannot_equip = not self.controller.can_equip_martial(item)
-        if item in self.controller.equipped_items():
+        if self.controller.is_equipped(item):
             cannot_equip = True
         key_suffix = f"{item.name}-{idx}" if idx is not None else item.name
         if st.button(self.loc.equip_button,
@@ -558,7 +558,7 @@ class ArmorTableWriter(TableWriter):
         def upgrade_item_dialog(item: Item):
             upgrade_item(self.controller, item, self.loc)
         cannot_equip = not self.controller.can_equip_martial(item)
-        if item in self.controller.equipped_items():
+        if self.controller.is_equipped(item):
             cannot_equip = True
 
         key_suffix = f"{item.name}-{idx}" if idx is not None else item.name
@@ -663,7 +663,7 @@ class ShieldTableWriter(TableWriter):
         def upgrade_item_dialog(item: Item):
             upgrade_item(self.controller, item, self.loc)
         cannot_equip = not self.controller.can_equip_martial(item)
-        if item in self.controller.equipped_items():
+        if self.controller.is_equipped(item):
             cannot_equip = True
 
         key_suffix = f"{item.name}-{idx}" if idx is not None else item.name
@@ -726,7 +726,7 @@ class AccessoryTableWriter(TableWriter):
 
     def equip(self, item: Accessory, idx: int | None = None):
         key_suffix = f"{item.name}-{idx}" if idx is not None else item.name
-        disabled = item in self.controller.equipped_items()
+        disabled = self.controller.is_equipped(item)
         if st.button(self.loc.equip_button, key=f'{key_suffix}-equip', disabled=disabled):
             try:
                 self.controller.equip_item(item)
