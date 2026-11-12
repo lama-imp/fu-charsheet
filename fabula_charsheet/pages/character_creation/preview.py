@@ -64,10 +64,14 @@ def build(controller: CharacterController):
             )
         )
         if st.button(loc.save_character_button, disabled= not controller.has_enough_skills()):
-            controller.dump_character()
-            controller.dump_avatar(st.session_state.avatar)
-            s.SAVED_CHARS.char_list.append(controller.character)
-            st.toast(loc.page_save_character_toast, icon="🧙")
+            try:
+                controller.dump_character()
+                controller.dump_avatar(st.session_state.avatar)
+            except Exception as e:
+                st.error(loc.page_save_character_error.format(error=e), icon="📜")
+            else:
+                s.SAVED_CHARS.upsert(controller.character)
+                st.toast(loc.page_save_character_toast, icon="🧙")
         if not controller.has_enough_skills():
             st.warning(
                 loc.page_character_preview_skill_points_warning.format(level=controller.character.level)

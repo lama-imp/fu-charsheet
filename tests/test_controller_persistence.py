@@ -33,7 +33,7 @@ def test_dump_character_round_trips_via_yaml(controller, isolated_save_directori
     controller.dump_character()
     saved_path = isolated_save_directories.chars / f"Bob.{controller.character.id}.character.yaml"
     with saved_path.open(encoding="utf-8") as f:
-        raw = yaml.load(f, Loader=yaml.UnsafeLoader)
+        raw = yaml.safe_load(f)  # plain YAML only, no Python object tags
     reloaded = Character(**raw)
     assert reloaded.name == "Bob"
     assert reloaded.level == 12
@@ -97,3 +97,88 @@ def test_dump_avatar_removes_stale_images_for_same_id(controller, isolated_save_
     matches = list(isolated_save_directories.images.glob(f"*{controller.character.id}.*"))
     assert len(matches) == 1
     assert matches[0].suffix == ".jpg"
+
+
+def test_dump_character_handles_non_ascii_text(controller, isolated_save_directories):
+    controller.character.name = "Алиса"
+    controller.character.identity = "Странствующая колдунья"
+    controller.dump_character()
+    saved_path = isolated_save_directories.chars / f"Алиса.{controller.character.id}.character.yaml"
+    with saved_path.open(encoding="utf-8") as f:
+        reloaded = Character(**yaml.safe_load(f))
+    assert reloaded.identity == "Странствующая колдунья"
+
+
+@pytest.mark.parametrize("name", ["a/b:c", "../../escape", "CON", "", "...", 'x<>"|?*'])
+def test_dump_character_sanitizes_file_name(controller, isolated_save_directories, name):
+    controller.character.name = name
+    controller.dump_character()
+    matches = list(isolated_save_directories.chars.glob(f"*.{controller.character.id}.character.yaml"))
+    assert len(matches) == 1
+    assert matches[0].parent == isolated_save_directories.chars
+    with matches[0].open(encoding="utf-8") as f:
+        assert yaml.safe_load(f)["name"] == name
+
+
+def test_dump_avatar_sanitizes_file_name(controller, isolated_save_directories):
+    controller.character.name = "../a/b:c"
+    image = types.SimpleNamespace(name="avatar.png", getbuffer=lambda: b"PNGDATA")
+    controller.dump_avatar(image)
+    matches = list(isolated_save_directories.images.glob(f"*{controller.character.id}.png"))
+    assert len(matches) == 1
+    assert matches[0].parent == isolated_save_directories.images
+
+
+def test_failed_save_keeps_previous_file(controller, isolated_save_directories, monkeypatch):
+    controller.character.name = "Eve"
+    controller.dump_character()
+    saved_path = isolated_save_directories.chars / f"Eve.{controller.character.id}.character.yaml"
+    before = saved_path.read_bytes()
+
+    def broken_dump(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr("data.persistence.yaml.safe_dump", broken_dump)
+    controller.character.name = "Eve Renamed"
+    with pytest.raises(RuntimeError):
+        controller.dump_character()
+    assert saved_path.read_bytes() == before
+    assert [p.name for p in isolated_save_directories.chars.iterdir() if p.is_file()] == [saved_path.name]
+
+
+def test_load_state_reads_legacy_python_tags(controller, isolated_save_directories):
+    legacy = (
+        "minus_hp: 4\n"
+        "statuses:\n"
+        "- !!python/object/apply:data.models.status.Status\n"
+        "  - dazed\n"
+    )
+    (isolated_save_directories.states / f"{controller.character.id}.yaml").write_text(legacy, encoding="utf-8")
+    controller.load_state()
+    assert controller.state.minus_hp == 4
+    assert [s.value for s in controller.state.statuses] == ["dazed"]
+
+
+def test_load_character_works_on_a_copy(controller, isolated_save_directories):
+    saved = Character(name="Frank", level=7)
+    with pytest.raises(Exception):  # no state file yet
+        controller.load_character(saved)
+    controller.character.level = 8
+    assert saved.level == 7
+
+
+def test_unsaved_changes_tracking(controller, isolated_save_directories):
+    controller.character.name = "Grace"
+    controller.save()
+    assert not controller.has_unsaved_changes()
+
+    controller.character.might.current = 6  # derived by apply_status, not an edit
+    assert not controller.has_unsaved_changes()
+
+    controller.character.level = 9
+    assert controller.has_unsaved_changes()
+    controller.save()
+    assert not controller.has_unsaved_changes()
+
+    controller.state.minus_hp = 3
+    assert controller.has_unsaved_changes()

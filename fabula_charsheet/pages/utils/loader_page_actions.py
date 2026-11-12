@@ -17,7 +17,7 @@ def delete_character(character: Character, loc: LocNamespace):
                     loc.page_delete_character_yes_button.format(name=character.name.title()),
                     icon="💀"
                 ):
-            s.SAVED_CHARS.char_list.remove(character)
+            s.SAVED_CHARS.remove(character.id)
             char_paths = list(config.SAVED_CHARS_DIRECTORY.glob(f"*.{character.id}.character.yaml"))
             if not char_paths:
                 st.error(loc.page_delete_character_file_missing, icon="📜")
@@ -26,6 +26,11 @@ def delete_character(character: Character, loc: LocNamespace):
                     char_path.unlink()
                 except PermissionError:
                     st.error(loc.page_delete_character_file_permission, icon="🔒")
+            state_path = config.SAVED_STATES_DIRECTORY / f"{character.id}.yaml"
+            try:
+                state_path.unlink(missing_ok=True)
+            except PermissionError:
+                st.error(loc.page_delete_character_state_permission, icon="🔒")
             avatar_path = get_avatar_path(character.id)
             if avatar_path:
                 try:

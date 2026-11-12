@@ -9,13 +9,17 @@ from pages.utils import WeaponTableWriter, ArmorTableWriter, SkillTableWriter, S
     show_martial, set_view_state, get_avatar_path, avatar_update, level_up, add_chimerist_spell, \
     remove_chimerist_spell, add_item, remove_item, unequip_item, add_heroic_skill, add_spell, add_bond, remove_bond, \
     increase_attribute, add_therioform, add_dance, add_arcanum, manifest_therioform, display_equipped_item, add_invention, \
-    colored_attr, add_companion, display_companion
+    colored_attr, add_companion, display_companion, save_current_character, confirm_leaving_unsaved
 from pages.character_view.view_state import ViewState
 
 
 def build(controller: CharacterController):
     st.set_page_config(layout="wide")
     loc: LocNamespace = st.session_state.localizator.get(st.session_state.language)
+
+    @st.dialog(loc.page_unsaved_changes_title)
+    def unsaved_changes_dialog(controller: CharacterController, loc: LocNamespace):
+        confirm_leaving_unsaved(controller, loc, on_leave=lambda: set_view_state(ViewState.load))
 
     @st.dialog(loc.page_view_avatar_update_dialog_title)
     def avatar_update_dialog(controller: CharacterController, loc: LocNamespace):
@@ -533,8 +537,10 @@ def build(controller: CharacterController):
     col1, col2 = st.columns([0.2, 0.8])
     with col1:
         if st.button(loc.save_current_character_button):
-            controller.dump_character()
-            controller.dump_state()
+            save_current_character(controller, loc)
     with col2:
         if st.button(loc.load_another_character_button):
-            set_view_state(ViewState.load)
+            if controller.has_unsaved_changes():
+                unsaved_changes_dialog(controller, loc)
+            else:
+                set_view_state(ViewState.load)

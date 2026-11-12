@@ -3,8 +3,6 @@ import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import yaml
-
 from config import (
     SAVED_CHARS_DIRECTORY,
     SAVED_CHARS_IMG_DIRECTORY,
@@ -13,6 +11,7 @@ from config import (
     MAX_ATTRIBUTE_VALUE,
 )
 from data import compendium as c
+from data.persistence import atomic_write, dump_yaml, load_yaml, safe_filename
 from data.models import (
     Character,
     CharClass,
@@ -52,6 +51,8 @@ class CharacterController:
         self.character = Character()
         self.loc = loc
         self.state = CharState()
+        # What was last loaded from / written to disk, to detect unsaved edits.
+        self._saved_snapshot: dict | None = None
 
     def get_character(self):
         return self.character
@@ -312,30 +313,55 @@ class CharacterController:
                 setattr(equipped, category, None)
         self.character.inventory.backpack.remove_item(item)
 
+    def load_character(self, character: Character):
+        """Start working on a copy of a saved character, so unsaved edits never
+        leak into the saved-characters list. Raises if its state can't be loaded
+        (the character is still loaded, with a default state)."""
+        self.character = character.model_copy(deep=True)
+        try:
+            self.load_state()
+        finally:
+            self.mark_saved()
+
+    def _snapshot(self) -> dict:
+        # Attribute `current` values are derived from base + statuses by
+        # apply_status(), so they are not user edits.
+        derived = {"current"}
+        character = self.character.model_dump(
+            mode="json",
+            exclude={"dexterity": derived, "might": derived, "insight": derived, "willpower": derived},
+        )
+        return {"character": character, "state": self.state.model_dump(mode="json")}
+
+    def mark_saved(self):
+        self._saved_snapshot = self._snapshot()
+
+    def has_unsaved_changes(self) -> bool:
+        return self._saved_snapshot is None or self._saved_snapshot != self._snapshot()
+
     def dump_character(self):
-        for old_file in SAVED_CHARS_DIRECTORY.glob(f"*.{self.character.id}.character.yaml"):
-            old_file.unlink()
-        with Path(
-                SAVED_CHARS_DIRECTORY,
-                f"{self.character.name}.{self.character.id}.character.yaml"
-        ).open("w") as yaml_file:
-            yaml.dump(
-                self.character.model_dump(),
-                yaml_file,
-                sort_keys=False,
-                allow_unicode=True,
-                default_flow_style=False
-            )
+        char_id = self.character.id
+        new_path = Path(
+            SAVED_CHARS_DIRECTORY,
+            f"{safe_filename(self.character.name)}.{char_id}.character.yaml",
+        )
+        dump_yaml(self.character.model_dump(mode="json"), new_path)
+        # Only remove older files (e.g. from before a rename) once the new one is safely written.
+        for old_file in SAVED_CHARS_DIRECTORY.glob(f"*.{char_id}.character.yaml"):
+            if old_file != new_path:
+                old_file.unlink(missing_ok=True)
 
     def dump_avatar(self, image: UploadedFile | None ):
         if image is not None:
-            for old_file in SAVED_CHARS_IMG_DIRECTORY.glob(f"*{self.character.id}.*"):
-                old_file.unlink()
+            char_id = self.character.id
             image_file_path = Path(
                     SAVED_CHARS_IMG_DIRECTORY,
-                    f"{self.character.name}.{self.character.id}{Path(image.name).suffix}"
+                    f"{safe_filename(self.character.name)}.{char_id}{Path(image.name).suffix.lower()}"
             )
-            image_file_path.write_bytes(image.getbuffer())
+            atomic_write(image_file_path, bytes(image.getbuffer()))
+            for old_file in SAVED_CHARS_IMG_DIRECTORY.glob(f"*{char_id}.*"):
+                if old_file != image_file_path:
+                    old_file.unlink(missing_ok=True)
 
     def apply_status(self):
         dex_modifier = 0
@@ -476,21 +502,19 @@ class CharacterController:
         return self.current_ip() >= ip_cost
 
     def dump_state(self):
-        with Path(SAVED_STATES_DIRECTORY, f"{self.character.id}.yaml").open("w", encoding="utf-8") as yaml_file:
-            yaml.dump(
-                self.state.model_dump(),
-                yaml_file,
-                sort_keys=False,
-                allow_unicode=True,
-                default_flow_style=False
-            )
+        dump_yaml(self.state.model_dump(mode="json"), Path(SAVED_STATES_DIRECTORY, f"{self.character.id}.yaml"))
+
+    def save(self):
+        """Save both the character and its battle state."""
+        self.dump_character()
+        self.dump_state()
+        self.mark_saved()
 
     def load_state(self):
         try:
-            with Path(SAVED_STATES_DIRECTORY, f"{self.character.id}.yaml").open('r', encoding="utf-8") as yaml_file:
-                raw_state = yaml.load(yaml_file, Loader=yaml.Loader)
-                self.state = CharState(**dict(raw_state))
-        except:
+            raw_state = load_yaml(Path(SAVED_STATES_DIRECTORY, f"{self.character.id}.yaml"))
+            self.state = CharState(**dict(raw_state))
+        except Exception:
             self.state = CharState()
             raise Exception("Unable to load state. Switching to default.")
 

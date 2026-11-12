@@ -18,6 +18,14 @@ def build(controller: CharacterController):
     st.set_page_config(layout="centered")
     st.title(loc.page_load_character_title)
 
+    if s.SAVED_CHARS.failed_files:
+        st.warning(
+            loc.page_load_character_failed_files.format(
+                files=", ".join(p.name for p in s.SAVED_CHARS.failed_files)
+            ),
+            icon="⚠️",
+        )
+
     if s.SAVED_CHARS.char_list:
         for char in s.SAVED_CHARS.char_list:
             col1, col2, col3 = st.columns(3)
@@ -33,9 +41,8 @@ def build(controller: CharacterController):
                 load_col, delete_col = st.columns(2)
                 with load_col:
                     if st.button(loc.page_load_character_load_button, key=f"{char.id}-loader"):
-                        controller.character = char
                         try:
-                            controller.load_state()
+                            controller.load_character(char)
                         except Exception as e:
                             st.toast(e)
                         set_view_state(ViewState.view)

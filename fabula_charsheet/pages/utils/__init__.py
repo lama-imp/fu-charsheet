@@ -53,6 +53,8 @@ from .view_page_actions import (
     add_invention,
     add_companion,
     display_companion,
+    save_current_character,
+    confirm_leaving_unsaved,
 )
 
 from .classes_page_actions import (

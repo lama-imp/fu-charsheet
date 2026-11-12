@@ -14,6 +14,7 @@ from .table_writer import SkillTableWriter, HeroicSkillTableWriter, SpellTableWr
 from .classes_page_actions import add_new_class
 from .common import join_with_and
 from data import compendium as c
+from data import saved_characters as s
 
 COMPANION_ATTRIBUTE_ARRAYS = {
     "jack_of_all_trades": [8, 8, 8, 8],
@@ -1039,3 +1040,31 @@ def display_companion(controller: CharacterController, loc: LocNamespace):
         if status_immunities:
             st.markdown(f"**{loc.companion_status_immunities}**: {join_with_and([s.localized_name(loc) for s in status_immunities], loc)}")
 
+
+
+def save_current_character(controller: CharacterController, loc: LocNamespace) -> bool:
+    """Save the character and its battle state, telling the user how it went."""
+    try:
+        controller.save()
+    except Exception as e:
+        st.error(loc.page_save_character_error.format(error=e), icon="📜")
+        return False
+    s.SAVED_CHARS.upsert(controller.character)
+    st.toast(loc.page_save_current_character_toast.format(name=controller.character.name), icon="💾")
+    return True
+
+
+def confirm_leaving_unsaved(controller: CharacterController, loc: LocNamespace, on_leave) -> None:
+    """Body of the "unsaved changes" dialog: save, discard, or stay."""
+    st.warning(loc.page_unsaved_changes_warning.format(name=controller.character.name), icon="❓")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button(loc.page_unsaved_changes_save_button, type="primary"):
+            if save_current_character(controller, loc):
+                on_leave()
+    with c2:
+        if st.button(loc.page_unsaved_changes_discard_button):
+            on_leave()
+    with c3:
+        if st.button(loc.page_unsaved_changes_cancel_button):
+            st.rerun()
