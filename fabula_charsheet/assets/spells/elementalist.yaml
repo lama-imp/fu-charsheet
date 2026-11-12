@@ -1,72 +1,87 @@
-- name: aura
-  is_offensive: false
+- name: elemental_shroud
   mp_cost: 5
   target: up_to_three
   duration: scene
+  char_class: elementalist
 
-- name: awaken
-  is_offensive: false
-  mp_cost: 20
-  target: one_creature
-  duration: scene
-
-- name: barrier
-  is_offensive: false
-  mp_cost: 5
-  target: up_to_three
-  duration: scene
-
-- name: cleanse
-  is_offensive: false
-  mp_cost: 5
-  target: up_to_three
-  duration: scene
-
-- name: enrage
-  is_offensive: true
-  mp_cost: 10
-  target: one_creature
-  duration: instantaneous
-
-- name: hallucination
-  is_offensive: true
-  mp_cost: 5
-  target: up_to_three
-  duration: instantaneous
-
-- name: heal
-  is_offensive: false
-  mp_cost: 10
-  target: up_to_three
-  duration: instantaneous
-
-- name: lux
-  is_offensive: true
-  mp_cost: 10
-  target: up_to_three
-  duration: instantaneous
-  damage_type: light
-
-- name: mercy
-  is_offensive: false
-  mp_cost: 20
-  target: one_creature
-  duration: scene
-
-- name: reinforce
-  is_offensive: false
-  mp_cost: 5
-  target: up_to_three
-  duration: scene
-
-- name: soul weapon
-  is_offensive: false
+- name: elemental_weapon
   mp_cost: 10
   target: weapon
   duration: scene
+  char_class: elementalist
 
-- name: torpor
+- name: flare
   is_offensive: true
-  mp_cost: 5
+  mp_cost: 20
+  target: one_creature
+  duration: instantaneous
+  damage_type: fire
+  char_class: elementalist
+
+- name: fulgur
+  is_offensive: true
+  mp_cost: 10
   target: up_to_three
   duration: instantaneous
+  damage_type: lightning
+  char_class: elementalist
+
+- name: glacies
+  is_offensive: true
+  mp_cost: 10
+  target: up_to_three
+  duration: instantaneous
+  damage_type: ice
+  char_class: elementalist
+
+- name: iceberg
+  is_offensive: true
+  mp_cost: 20
+  target: one_creature
+  duration: instantaneous
+  damage_type: ice
+  char_class: elementalist
+
+- name: ignis
+  is_offensive: true
+  mp_cost: 10
+  target: up_to_three
+  duration: instantaneous
+  damage_type: fire
+  char_class: elementalist
+
+- name: soaring_strike
+  mp_cost: 10
+  target: self
+  duration: instantaneous
+  char_class: elementalist
+
+- name: terra
+  is_offensive: true
+  mp_cost: 10
+  target: up_to_three
+  duration: instantaneous
+  damage_type: earth
+  char_class: elementalist
+
+- name: thunderbolt
+  is_offensive: true
+  mp_cost: 20
+  target: one_creature
+  duration: instantaneous
+  damage_type: lightning
+  char_class: elementalist
+
+- name: ventus
+  is_offensive: true
+  mp_cost: 10
+  target: up_to_three
+  duration: instantaneous
+  damage_type: air
+  char_class: elementalist
+
+- name: vortex
+  mp_cost: 10
+  target: self
+  duration: scene
+  char_class: elementalist

@@ -456,7 +456,7 @@ class WeaponTableWriter(TableWriter):
                      disabled=cannot_equip):
             try:
                 self.controller.equip_item(item)
-                st.toast(self.loc.equipped_message.format(item_name=item.localized_name(self.loc)))
+                st.toast(self.loc.msg_equipped_item.format(item_name=item.localized_name(self.loc)))
             except Exception as e:
                 st.warning(e, icon="🙅‍♂️")
             st.rerun()
@@ -568,7 +568,7 @@ class ArmorTableWriter(TableWriter):
                      disabled=cannot_equip):
             try:
                 self.controller.equip_item(item)
-                st.toast(self.loc.equipped_message.format(item_name=item.localized_name(self.loc)))
+                st.toast(self.loc.msg_equipped_item.format(item_name=item.localized_name(self.loc)))
             except Exception as e:
                 st.warning(e, icon="🙅‍♂️")
             st.rerun()
@@ -673,7 +673,7 @@ class ShieldTableWriter(TableWriter):
                      disabled=cannot_equip):
             try:
                 self.controller.equip_item(item)
-                st.toast(self.loc.equipped_message.format(item_name=item.localized_name(self.loc)))
+                st.toast(self.loc.msg_equipped_item.format(item_name=item.localized_name(self.loc)))
             except Exception as e:
                 st.warning(e, icon="🙅‍♂️")
             st.rerun()
@@ -730,7 +730,7 @@ class AccessoryTableWriter(TableWriter):
         if st.button(self.loc.equip_button, key=f'{key_suffix}-equip', disabled=disabled):
             try:
                 self.controller.equip_item(item)
-                st.toast(self.loc.equipped_message.format(item_name=item.localized_name(self.loc)))
+                st.toast(self.loc.msg_equipped_item.format(item_name=item.localized_name(self.loc)))
             except Exception as e:
                 st.warning(e, icon="🙅‍♂️")
             st.rerun()

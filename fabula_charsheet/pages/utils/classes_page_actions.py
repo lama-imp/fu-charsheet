@@ -40,7 +40,7 @@ def add_new_class(
 
     if selected_class:
         if character_controller.is_class_added(selected_class):
-            st.error(loc.page_class_already_added_error)
+            st.error(loc.error_class_already_added)
         else:
             class_controller.char_class = selected_class
 

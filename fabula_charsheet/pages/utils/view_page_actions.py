@@ -250,7 +250,7 @@ def add_item(controller: CharacterController, loc: LocNamespace):
             st.rerun()
         except Exception as e:
             st.error(e)
-            st.warning(loc.page_view_error_adding_item, icon="🪨")
+            st.warning(loc.error_adding_item, icon="🪨")
 
 
 def remove_item(controller: CharacterController, loc: LocNamespace):

@@ -115,19 +115,19 @@ def edit_class(character_controller: CharacterController, char_class: CharClass,
     casting_skill = class_controller.char_class.get_spell_skill()
     st.session_state.class_spells = character_controller.character.spells[char_class.name]
 
-    with st.expander(loc.page_class_choose_skills):
+    with st.expander(loc.page_class_choose_skills_expander):
         SkillTableWriter(loc).write_in_columns(class_controller.char_class.skills)
 
     can_add_skill_number = character_controller.can_add_skill_number()
 
     if class_controller.char_class.class_level() < 1:
         class_not_ready = True
-        st.error(loc.page_class_error_min_skill)
+        st.error(loc.error_class_need_skill)
     elif can_add_skill_number < 0:
-        st.error(loc.page_class_error_remove_skills.format(n=abs(can_add_skill_number)))
+        st.error(loc.error_class_remove_skill.format(levels=abs(can_add_skill_number)))
         class_not_ready = True
     else:
-        st.write(loc.page_class_selected_skills)
+        st.write(loc.msg_skills_selected)
         for skill in class_controller.char_class.skills:
             if skill.current_level > 0:
                 show_skill(skill, loc)
@@ -135,23 +135,23 @@ def edit_class(character_controller: CharacterController, char_class: CharClass,
 
     if if_show_spells(casting_skill):
         class_spells = c.COMPENDIUM.spells.get_spells(class_controller.char_class.name)
-        with st.expander(loc.page_class_select_spells):
+        with st.expander(loc.page_class_select_spells_expander):
             SpellTableWriter(loc).write_in_columns(class_spells)
         total_class_spells = len(st.session_state["class_spells"])
         max_n_spells = casting_skill.current_level
 
         if total_class_spells != max_n_spells:
             class_not_ready = True
-            st.error(loc.page_class_error_spell_count.format(n=max_n_spells, skill=casting_skill.name.title()))
+            st.error(loc.error_class_select_exact_spells.format(max_n_spells=max_n_spells, casting_skill=casting_skill.localized_name(loc)))
         else:
             class_not_ready = False
 
-    if st.button(loc.page_class_update_button, disabled=class_not_ready):
+    if st.button(loc.update_class_button, disabled=class_not_ready):
         try:
             character_controller.update_class(class_controller.char_class)
             character_controller.character.spells[char_class.name] = st.session_state.class_spells
             st.session_state.class_spells = []
-            st.info(loc.page_class_updated.format(class_name=char_class.name.title()))
+            st.info(loc.msg_class_updated.format(class_name=char_class.localized_name(loc)))
             st.rerun()
         except Exception as e:
             st.error(e, icon="🚨")
