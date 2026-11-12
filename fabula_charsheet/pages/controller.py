@@ -161,7 +161,7 @@ class CharacterController:
                 bonus += 10
             else:
                 bonus += 20
-        # to-do: add other class bonuses to HP, e.g., Guardian
+        bonus += 3 * (self.get_skill_level(ClassName.guardian, "fortress") or 0)
 
         return base_hp + bonus
 
@@ -177,7 +177,7 @@ class CharacterController:
                 bonus += 10
             else:
                 bonus += 20
-        # to-do: add other class bonuses to MP, e.g., Loremaster
+        bonus += 3 * (self.get_skill_level(ClassName.loremaster, "focused") or 0)
 
         return base_mp + bonus
 
@@ -207,10 +207,14 @@ class CharacterController:
             item_bonus += item.bonus_defense
 
         other_bonuses = 0
-        if self.is_class_added(ClassName.rogue):
-            other_bonuses += self.get_skill_level(ClassName.rogue, "dodge")
-
         armor = self.character.inventory.equipped.armor
+        # Rogue's Dodge only works with no shields and no martial armor equipped.
+        equipped = self.character.inventory.equipped
+        has_shield = isinstance(equipped.main_hand, Shield) or isinstance(equipped.off_hand, Shield)
+        has_martial_armor = armor is not None and armor.martial
+        if not has_shield and not has_martial_armor:
+            other_bonuses += self.get_skill_level(ClassName.rogue, "dodge") or 0
+
         if armor:
             if isinstance(armor.defense, int):
                 armor_defense = armor.defense
@@ -491,13 +495,12 @@ class CharacterController:
                 self.character.willpower.base,
             ]
         )
-        if (
-                self.character.level == 20 and sum_of_attributes < ATTRIBUTE_SUM_AT_LEVEL_20
-        ) or (
-                self.character.level == 40 and sum_of_attributes < ATTRIBUTE_SUM_AT_LEVEL_40
-        ):
-            return True
-
+        # The increase is earned on reaching level 20 / 40 and stays available
+        # until it is taken, so a skipped one is not lost on the next level-up.
+        if self.character.level >= 40:
+            return sum_of_attributes < ATTRIBUTE_SUM_AT_LEVEL_40
+        if self.character.level >= 20:
+            return sum_of_attributes < ATTRIBUTE_SUM_AT_LEVEL_20
         return False
 
     def add_status(self, status: Status):
@@ -669,6 +672,25 @@ class CharacterController:
         if not casting_skill:
             return False
         return casting_skill.current_level > len(self.character.get_spells_by_class(class_name))
+
+    INVENTION_TIERS = ("basic", "advanced", "superior")
+
+    def can_add_invention(self) -> bool:
+        """Each level of Gadgets grants one gadget benefit (a basic, advanced or superior tier)."""
+        return len(self.character.special.inventions) < (
+            self.get_skill_level(ClassName.tinkerer, "gadgets") or 0
+        )
+
+    def is_invention_available(self, invention) -> bool:
+        """A tier can be taken only after the previous tier of the same gadget type."""
+        owned = {i.name for i in self.character.special.inventions}
+        if invention.name in owned:
+            return False
+        gadget_type, _, tier = invention.name.rpartition("_")
+        if tier not in self.INVENTION_TIERS:
+            return True
+        tier_idx = self.INVENTION_TIERS.index(tier)
+        return tier_idx == 0 or f"{gadget_type}_{self.INVENTION_TIERS[tier_idx - 1]}" in owned
 
     def can_add_therioform(self) -> bool:
         return len(self.character.special.therioforms) < (

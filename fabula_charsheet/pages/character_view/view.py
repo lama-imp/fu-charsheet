@@ -523,7 +523,7 @@ def build(controller: CharacterController):
             with col1:
                 st.markdown(f"##### {loc.page_view_inventions}")
             with col2:
-                if len(added_inventions) < controller.get_skill_level(ClassName.tinkerer, "gadgets"):
+                if controller.can_add_invention():
                     if st.button(loc.add_invention_button):
                         add_invention_dialog(controller, loc)
             InventionTableWriter(loc).write_in_columns(added_inventions)

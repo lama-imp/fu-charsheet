@@ -73,3 +73,23 @@ def test_crisis_value_is_floor_half_max_hp(controller):
     controller.character.might.base = 8
     assert controller.max_hp() == 45
     assert controller.crisis_value() == 22
+
+
+def test_guardian_fortress_adds_hp(controller):
+    from data.models import ClassName, Skill
+    controller.character.level = 5
+    controller.character.might.base = 8
+    controller.character.classes = [
+        CharClass(name=ClassName.guardian, skills=[Skill(name="fortress", current_level=2, max_level=3)])
+    ]
+    assert controller.max_hp() == 5 + 8 * 5 + 2 * 3
+
+
+def test_loremaster_focused_adds_mp(controller):
+    from data.models import ClassName, Skill
+    controller.character.level = 5
+    controller.character.willpower.base = 8
+    controller.character.classes = [
+        CharClass(name=ClassName.loremaster, skills=[Skill(name="focused", current_level=3, max_level=3)])
+    ]
+    assert controller.max_mp() == 5 + 8 * 5 + 3 * 3

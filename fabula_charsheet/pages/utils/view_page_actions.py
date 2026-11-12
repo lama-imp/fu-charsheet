@@ -474,7 +474,7 @@ def add_invention(controller: CharacterController, loc: LocNamespace):
                 selected_invention.remove(invention)
 
     sorted_inventions = sorted(c.COMPENDIUM.inventions, key=lambda x: x.localized_name(loc))
-    available_inventions = [i for i in sorted_inventions if i not in controller.character.special.inventions]
+    available_inventions = [i for i in sorted_inventions if controller.is_invention_available(i)]
 
     writer = InventionTableWriter(loc)
     writer.columns = writer.add_one_invention_columns(single_selector)

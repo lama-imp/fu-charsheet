@@ -174,7 +174,7 @@ def test_can_add_class_allows_up_to_two_non_mastered_classes(controller):
 
 
 def test_can_increase_attribute_only_at_thresholds(controller):
-    controller.character.level = 21
+    controller.character.level = 19
     assert controller.can_increase_attribute() is False
 
     controller.character.level = 20
@@ -265,3 +265,32 @@ def test_apply_quality_effects_unknown_quality_is_a_no_op(controller):
     assert item.bonus_defense == 0
     assert item.bonus_magic_defense == 0
     assert item.bonus_initiative == 0
+
+
+def test_skipped_attribute_increase_stays_available(controller):
+    for attr in ("dexterity", "might", "insight", "willpower"):
+        getattr(controller.character, attr).base = 8  # sum = 32
+    controller.character.level = 25
+    assert controller.can_increase_attribute() is True
+    controller.character.level = 45
+    controller.character.dexterity.base = 10  # sum = 34: level-20 increase taken, level-40 one not
+    assert controller.can_increase_attribute() is True
+    controller.character.might.base = 10  # sum = 36
+    assert controller.can_increase_attribute() is False
+
+
+def test_inventions_limited_by_gadgets_and_tier_order(controller):
+    from data.models import Invention
+    controller.character.classes = [
+        CharClass(name=ClassName.tinkerer, skills=[Skill(name="gadgets", current_level=2, max_level=5)])
+    ]
+    basic, advanced, superior = (Invention(name=f"alchemy_{t}") for t in ("basic", "advanced", "superior"))
+    assert controller.can_add_invention() is True
+    assert controller.is_invention_available(basic) is True
+    assert controller.is_invention_available(advanced) is False
+    controller.character.special.inventions.append(basic)
+    assert controller.is_invention_available(basic) is False
+    assert controller.is_invention_available(advanced) is True
+    assert controller.is_invention_available(superior) is False
+    controller.character.special.inventions.append(advanced)
+    assert controller.can_add_invention() is False
