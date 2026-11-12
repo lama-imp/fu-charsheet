@@ -14,6 +14,10 @@ def build():
     st.session_state.creation_step = st.session_state.get("creation_step", CreationState.identity)
     st.session_state.creation_controller = st.session_state.get("creation_controller", CharacterController(loc))
 
+    flash = st.session_state.pop("creation_flash", None)
+    if flash:
+        st.toast(flash, icon="🧙")
+
     match st.session_state.creation_step:
         case CreationState.identity:
             identity.build(st.session_state.creation_controller)

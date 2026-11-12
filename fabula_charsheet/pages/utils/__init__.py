@@ -1,6 +1,7 @@
 from .page_state import (
     set_creation_state,
-    set_view_state
+    set_view_state,
+    reset_character_creation,
 )
 
 from .table_writer import (

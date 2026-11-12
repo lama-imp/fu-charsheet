@@ -113,18 +113,20 @@ def edit_class(character_controller: CharacterController, char_class: CharClass,
     class_controller = ClassController()
     class_controller.char_class = deepcopy(char_class)
     casting_skill = class_controller.char_class.get_spell_skill()
-    st.session_state.class_spells = character_controller.character.spells[char_class.name]
+    # Work on a copy, so closing the dialog without saving changes nothing.
+    st.session_state.class_spells = list(character_controller.character.spells.get(char_class.name, []))
 
     with st.expander(loc.page_class_choose_skills_expander):
         SkillTableWriter(loc).write_in_columns(class_controller.char_class.skills)
 
-    can_add_skill_number = character_controller.can_add_skill_number()
+    # Counted with the edited skill levels, not the ones before the edit.
+    skill_points_left = character_controller.skill_points_left_with(class_controller.char_class)
 
     if class_controller.char_class.class_level() < 1:
         class_not_ready = True
         st.error(loc.error_class_need_skill)
-    elif can_add_skill_number < 0:
-        st.error(loc.error_class_remove_skill.format(levels=abs(can_add_skill_number)))
+    elif skill_points_left < 0:
+        st.error(loc.error_class_remove_skill.format(levels=abs(skill_points_left)))
         class_not_ready = True
     else:
         st.write(loc.msg_skills_selected)
@@ -143,15 +145,16 @@ def edit_class(character_controller: CharacterController, char_class: CharClass,
         if total_class_spells != max_n_spells:
             class_not_ready = True
             st.error(loc.error_class_select_exact_spells.format(max_n_spells=max_n_spells, casting_skill=casting_skill.localized_name(loc)))
-        else:
-            class_not_ready = False
 
     if st.button(loc.update_class_button, disabled=class_not_ready):
         try:
             character_controller.update_class(class_controller.char_class)
-            character_controller.character.spells[char_class.name] = st.session_state.class_spells
+            if if_show_spells(casting_skill):
+                character_controller.character.spells[char_class.name] = list(st.session_state.class_spells)
+            else:
+                character_controller.character.spells.pop(char_class.name, None)
             st.session_state.class_spells = []
-            st.info(loc.msg_class_updated.format(class_name=char_class.localized_name(loc)))
+            st.toast(loc.msg_class_updated.format(class_name=char_class.name.localized_name(loc)))
             st.rerun()
         except Exception as e:
             st.error(e, icon="🚨")

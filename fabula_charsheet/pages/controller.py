@@ -85,8 +85,30 @@ class CharacterController:
         msg = self.loc.error_class_not_found.format(class_name=updated_class.name)
         raise ValueError(msg)
 
+    def remove_class(self, class_name: ClassName):
+        """Remove a class together with the spells learned through it."""
+        self.character.classes = [c for c in self.character.classes if c.name != class_name]
+        self.character.spells.pop(class_name, None)
+        self.unequip_disallowed_items()
+
+    def unequip_disallowed_items(self):
+        """Unequip martial items none of the character's classes allow any more.
+        They stay in the backpack."""
+        equipped = self.character.inventory.equipped
+        for category in ("main_hand", "off_hand", "armor"):
+            item = getattr(equipped, category)
+            if item is not None and not self.can_equip_martial(item):
+                setattr(equipped, category, None)
+
     def can_add_skill_number(self):
         return self.character.level - self.character.get_n_skill()
+
+    def skill_points_left_with(self, char_class: CharClass) -> int:
+        """Skill points left if `char_class` (being added, or an edited copy of a
+        class the character has) were applied. Negative means too many."""
+        existing = self.character.get_class(char_class.name)
+        used = self.character.get_n_skill() - (existing.class_level() if existing else 0)
+        return self.character.level - used - char_class.class_level()
 
     def is_class_added(self, new_class: CharClass | str | None):
         if new_class is None:
@@ -228,7 +250,8 @@ class CharacterController:
         return initiative
 
     def can_equip_martial(self, item: Item) -> bool:
-        if not item.martial:
+        # Accessories and plain items have no `martial` field and are never martial.
+        if not getattr(item, "martial", False):
             return True
         if isinstance(item, Weapon):
             return any(c.can_equip_weapon(item.range) for c in self.character.classes)
@@ -239,6 +262,8 @@ class CharacterController:
         return False
 
     def equip_item(self, item: Item):
+        if not self.can_equip_martial(item):
+            raise Exception(self.loc.error_equipping_martial)
         equipped = self.character.inventory.equipped
 
         if isinstance(item, Armor):

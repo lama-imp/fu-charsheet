@@ -60,20 +60,25 @@ def add_new_class(
                     writer.columns = writer.level_up_new_class_columns
                 writer.write_in_columns(selected_class.skills)
 
-            can_add_skill_number = character_controller.can_add_skill_number()
+            skill_points_left = character_controller.skill_points_left_with(class_controller.char_class)
 
             if mode == "addition":
                 pass  # the level-up dialog validates the single skill picked
             elif class_controller.char_class.class_level() < 1:
                 class_not_ready = True
                 st.error(loc.error_class_need_skill)
-            elif can_add_skill_number < 0:
-                levels_to_remove = abs(can_add_skill_number - class_controller.char_class.class_level())
-                st.error(loc.error_class_remove_skill.format(levels=levels_to_remove))
+            elif skill_points_left < 0:
+                st.error(loc.error_class_remove_skill.format(levels=abs(skill_points_left)))
                 class_not_ready = True
             else:
-                list_skills(class_controller, can_add_skill_number, loc)
+                list_skills(class_controller, skill_points_left, loc)
                 class_not_ready = False
+
+            # A class with a choice of bonus (e.g. Dancer) needs one picked.
+            bonus = class_controller.char_class.class_bonus
+            if mode == "creation" and (bonus is None or isinstance(bonus, list)):
+                class_not_ready = True
+                st.error(loc.error_class_select_bonus)
 
             if if_show_spells(casting_skill) and mode == "creation":
                 class_spells = c.COMPENDIUM.spells.get_spells(class_controller.char_class.name)
@@ -95,7 +100,7 @@ def add_new_class(
     if mode == "creation":
         if st.button(loc.page_class_add_button, disabled=class_not_ready):
             character_controller.add_class(class_controller.char_class)
-            character_controller.character.spells[selected_class_name] = st.session_state.class_spells
+            character_controller.character.spells[selected_class_name] = list(st.session_state.class_spells)
             st.session_state.class_spells = []
             st.info(loc.page_class_added_info.format(selected_class=selected_class.name.localized_name(loc)))
             st.rerun()
@@ -108,7 +113,7 @@ def remove_class(character_controller: CharacterController, loc: LocNamespace):
             st.write(char_class.name.title())
         with c2:
             if st.button(loc.page_class_remove_button, key=f"{char_class.name}-remove"):
-                character_controller.character.classes.remove(char_class)
+                character_controller.remove_class(char_class.name)
                 st.rerun()
 
 

@@ -2,7 +2,7 @@ import streamlit as st
 
 import config
 from pages.utils import show_martial, add_new_class, avatar_uploader, edit_identity, edit_attributes, edit_class, \
-    unequip_item, equip_item, add_bond, remove_bond, BondTableWriter
+    unequip_item, equip_item, add_bond, remove_bond, BondTableWriter, reset_character_creation
 from pages.controller import CharacterController, ClassController
 from data.models import CharClass, LocNamespace
 from data import saved_characters as s
@@ -55,8 +55,6 @@ def build(controller: CharacterController):
         st.session_state.avatar = None
 
     message_col, img_col, _ = st.columns(3, gap="medium")
-    if st.session_state.avatar is not None:
-        controller.dump_avatar(st.session_state.avatar)
     with message_col:
         st.markdown(
             loc.page_character_preview_message.format(
@@ -71,7 +69,7 @@ def build(controller: CharacterController):
                 st.error(loc.page_save_character_error.format(error=e), icon="📜")
             else:
                 s.SAVED_CHARS.upsert(controller.character)
-                st.toast(loc.page_save_character_toast, icon="🧙")
+                reset_character_creation(loc.page_save_character_toast)
         if not controller.has_enough_skills():
             st.warning(
                 loc.page_character_preview_skill_points_warning.format(level=controller.character.level)
@@ -145,7 +143,7 @@ def build(controller: CharacterController):
                     edit_class_dialog(controller, char_class, loc)
             with c_col3:
                 if st.button(loc.remove_button, key=f"{char_class.name}-remove"):
-                    controller.character.classes.remove(char_class)
+                    controller.remove_class(char_class.name)
                     st.rerun()
             st.write(f"**{loc.page_view_skills}:**")
             added_skills = [skill for skill in char_class.skills if skill.current_level > 0]
@@ -214,6 +212,10 @@ def build(controller: CharacterController):
                     st.write(display_str)
                 with item_button_col:
                     if st.button(loc.equip_button,
-                                 key=f'{item.name}-{i}-equip'):
+                                 key=f'{item.name}-{i}-equip',
+                                 disabled=(
+                                     not controller.can_equip_martial(item)
+                                     or item in controller.equipped_items()
+                                 )):
                         equip_item(controller, item)
                         st.rerun()
