@@ -5,6 +5,7 @@ page_character_preview_message: |
   If everything is OK, click on `{save_button}`.
 page_save_character_toast: "Now you can load your character."
 page_character_preview_skill_points_warning: "You need to put exactly {level} points to your skills."
+page_character_preview_skill_points_status: "Skill points assigned: {spent} of {level}. Edit a class or add a new one so they match your level."
 page_avatar_uploader_title: "Upload your avatar"
 page_identity_dialog_title: "Edit your name, identity, origin or theme."
 page_attributes_dialog_title: "Edit attributes."

@@ -159,7 +159,12 @@ def build(controller: CharacterController):
     with col2:
         st.markdown(f"#### {loc.page_view_classes}")
         if not controller.has_enough_skills():
-            pass
+            st.warning(
+                loc.page_character_preview_skill_points_status.format(
+                    spent=controller.character.get_n_skill(),
+                    level=controller.character.level,
+                )
+            )
         sorted_classes = sorted(controller.character.classes, key=lambda x: x.class_level(), reverse=True)
         for char_class in sorted_classes:
             c_col1, c_col2, c_col3 = st.columns(3)

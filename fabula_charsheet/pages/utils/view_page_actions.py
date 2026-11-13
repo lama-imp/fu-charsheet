@@ -461,7 +461,7 @@ def add_dance(controller: CharacterController, loc: LocNamespace):
     available_dances = [t for t in sorted_dances if t not in controller.character.special.dances]
 
     writer = DanceTableWriter(loc)
-    writer.columns = writer.add_one_dance_columns(single_selector)
+    writer.columns = writer.with_select_column(single_selector)
     writer.write_in_columns(available_dances, description=False)
 
     if st.button(loc.add_dance_button, key="add-new-dance", disabled=(len(selected_dance) != 1)):
@@ -657,7 +657,7 @@ def add_arcanum(controller: CharacterController, loc: LocNamespace):
     available_arcana = [t for t in sorted_arcana if t not in controller.character.special.arcana]
 
     writer = ArcanumTableWriter(loc)
-    writer.columns = writer.add_one_dance_columns(single_selector)
+    writer.columns = writer.with_select_column(single_selector)
     writer.write_in_columns(available_arcana)
 
     if st.button(loc.add_arcanum_button,

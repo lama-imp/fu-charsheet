@@ -9,7 +9,6 @@ from .table_writer import (
     TableWriter,
     SkillTableWriter,
     SpellTableWriter,
-    HeroicSkillTableWriter,
     WeaponTableWriter,
     ArmorTableWriter,
     ShieldTableWriter,

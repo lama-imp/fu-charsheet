@@ -73,6 +73,17 @@ class TableWriter:
             if description:
                 self._add_description(item, item_idx)
 
+    def with_select_column(self, selector: Callable) -> tuple[ColumnConfig, ...]:
+        """Return this writer's columns plus a trailing selection column."""
+        return (
+            *self.columns,
+            ColumnConfig(
+                name="select",
+                width=0.1,
+                process=selector,
+            ),
+        )
+
     def _write_header(self):
         for cell, column_name in zip(
             st.columns(spec=[col.width for col in self.columns]),
@@ -815,16 +826,6 @@ class DanceTableWriter(TableWriter):
             ),
         )
 
-    def add_one_dance_columns(self, single_selector: Callable):
-        return (
-            *self.columns,
-            ColumnConfig(
-                name="select",
-                width=0.1,
-                process=single_selector,
-            ),
-        )
-
     def _add_description(self, dance: Dance, idx=None):
         pass
 
@@ -842,16 +843,6 @@ class ArcanumTableWriter(TableWriter):
                 name="domains",
                 width=0.45,
                 process=lambda a, idx=None: st.markdown(a.domains(self.loc)),
-            ),
-        )
-
-    def add_one_dance_columns(self, single_selector: Callable):
-        return (
-            *self.columns,
-            ColumnConfig(
-                name="select",
-                width=0.1,
-                process=single_selector,
             ),
         )
 
