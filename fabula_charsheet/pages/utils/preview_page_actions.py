@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import streamlit as st
 
-from pages.utils import SkillTableWriter, if_show_spells, SpellTableWriter, show_skill, theme_options
+from pages.utils import SkillTableWriter, if_show_spells, SpellTableWriter, show_skill, theme_options, theme_label
 from config import BASE_ATTRIBUTE_SUM
 from pages.controller import CharacterController, ClassController
 from data.models import Dexterity, Might, Insight, Willpower, Item, CharClass, LocNamespace
@@ -49,10 +49,10 @@ def edit_identity(controller: CharacterController, loc: LocNamespace):
     theme = st.selectbox(
         loc.page_identity_theme_label,
         options,
-        format_func=lambda t: t.localized_name(loc),
+        format_func=theme_label(loc),
         index=default_theme_idx,
         placeholder=loc.page_identity_theme_placeholder,
-        accept_new_options=False,
+        accept_new_options=True,
     )
     if st.button(loc.update_button):
         try:

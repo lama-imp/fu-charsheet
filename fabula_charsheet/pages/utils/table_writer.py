@@ -451,7 +451,7 @@ class WeaponTableWriter(TableWriter):
         ):
             self.inventory.backpack.weapons.append(deepcopy(weapon))
             self.inventory.zenit -= weapon.cost
-        if st.button(self.loc.add_as_button, key=f"{weapon.name}-add-as"):
+        if st.button(self.loc.add_as_button, key=f"{weapon.name}-add-as", disabled=cannot_equip):
             self._add_item_as(weapon)
 
     def equip(self, item: Weapon, idx: int | None = None):
@@ -547,7 +547,7 @@ class ArmorTableWriter(TableWriter):
             self.inventory.backpack.armors.append(deepcopy(armor))
             self.inventory.zenit -= armor.cost
 
-        if st.button(self.loc.add_as_button, key=f"{armor.name}-add-as"):
+        if st.button(self.loc.add_as_button, key=f"{armor.name}-add-as", disabled=cannot_equip):
             self._add_item_as(armor)
 
     def _write_defense(self, item: Armor, idx=None):
@@ -659,7 +659,7 @@ class ShieldTableWriter(TableWriter):
             self.inventory.backpack.shields.append(deepcopy(shield))
             self.inventory.zenit -= shield.cost
 
-        if st.button(self.loc.add_as_button, key=f"{shield.name}-add-as"):
+        if st.button(self.loc.add_as_button, key=f"{shield.name}-add-as", disabled=cannot_equip):
             self._add_item_as(shield)
 
     def _write_defense(self, item: Shield, idx=None):

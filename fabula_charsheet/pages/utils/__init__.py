@@ -36,6 +36,7 @@ from .common import (
     colored_attr,
     resource_bar,
     theme_options,
+    theme_label,
     localized_theme,
     HP_BAR_COLOR,
     MP_BAR_COLOR,

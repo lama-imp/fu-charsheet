@@ -1,7 +1,7 @@
 import streamlit as st
 
 from .creation_state import CreationState
-from pages.utils import set_creation_state, theme_options, wizard_nav
+from pages.utils import set_creation_state, theme_options, theme_label, wizard_nav
 from pages.controller import CharacterController
 from data.models import LocNamespace
 
@@ -23,10 +23,10 @@ def build(controller: CharacterController):
     theme = st.selectbox(
         loc.page_identity_theme_label,
         theme_list,
-        format_func=lambda t: t.localized_name(loc),
+        format_func=theme_label(loc),
         index=theme_idx,
         placeholder=loc.page_identity_theme_placeholder,
-        accept_new_options=False,
+        accept_new_options=True,
     )
 
     # Validate only when the user tries to move on, not before they've typed anything.

@@ -3,6 +3,7 @@ import uuid
 from pathlib import Path
 from copy import deepcopy
 from itertools import chain
+from typing import Callable
 
 import streamlit as st
 
@@ -317,12 +318,21 @@ def _resolve_theme(stored: str, loc: LocNamespace) -> CharacterTheme | None:
     return CharacterTheme.from_stored(stored, locs)
 
 
-def theme_options(stored: str, loc: LocNamespace) -> tuple[list[CharacterTheme], int | None]:
-    """Theme choices for a selectbox (render with format_func=lambda t: t.localized_name(loc))
-    and the index of the character's current theme, if it can be resolved."""
-    options = list(CharacterTheme)
+def theme_options(stored: str, loc: LocNamespace) -> tuple[list[CharacterTheme | str], int | None]:
+    """Theme choices for a selectbox (render with format_func=theme_label(loc), accept_new_options=True)
+    and the index of the character's current theme. A custom (non-preset) theme is kept as its own option."""
+    options: list[CharacterTheme | str] = list(CharacterTheme)
+    if not stored:
+        return options, None
     theme = _resolve_theme(stored, loc)
-    return options, (options.index(theme) if theme is not None else None)
+    if theme is not None:
+        return options, options.index(theme)
+    return [stored, *options], 0
+
+
+def theme_label(loc: LocNamespace) -> Callable[[CharacterTheme | str], str]:
+    """format_func for theme selectboxes: preset themes are localized, custom text is shown as typed."""
+    return lambda t: t.localized_name(loc) if isinstance(t, CharacterTheme) else str(t)
 
 
 def localized_theme(stored: str, loc: LocNamespace) -> str:
