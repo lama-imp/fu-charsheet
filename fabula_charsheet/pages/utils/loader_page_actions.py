@@ -14,7 +14,7 @@ def delete_character(character: Character, loc: LocNamespace):
             st.rerun()
     with c2:
         if st.button(
-                    loc.page_delete_character_yes_button.format(name=character.name.title()),
+                    loc.page_delete_character_yes_button.format(name=character.name),
                     icon="💀"
                 ):
             s.SAVED_CHARS.remove(character.id)

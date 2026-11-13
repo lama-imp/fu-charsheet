@@ -88,3 +88,6 @@ arcanum_wheel_dismiss: |
 arcana_domains: "Domains"
 arcana_merge: "MERGE"
 arcana_dismiss: "DISMISS"
+arcanum_no_merge_description: "No merge description found"
+arcanum_no_dismiss_description: "No dismiss description found"
+arcanum_no_domains: "No domains found"

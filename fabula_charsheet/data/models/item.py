@@ -25,7 +25,8 @@ class Item(BaseModel):
         try:
             return getattr(loc, key)
         except AttributeError:
-            return self.name.capitalize()
+            # custom item: keep the user's casing, only capitalize the first letter
+            return self.name[:1].upper() + self.name[1:]
 
     def localized_quality(self, loc: LocNamespace) -> str:
         if self.quality == "no_quality":

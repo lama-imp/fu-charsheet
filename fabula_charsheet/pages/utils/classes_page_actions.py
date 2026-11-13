@@ -110,7 +110,7 @@ def remove_class(character_controller: CharacterController, loc: LocNamespace):
     for char_class in character_controller.character.classes:
         c1, c2 = st.columns(2)
         with c1:
-            st.write(char_class.name.title())
+            st.write(char_class.name.localized_name(loc))
         with c2:
             if st.button(loc.page_class_remove_button, key=f"{char_class.name}-remove"):
                 character_controller.remove_class(char_class.name)

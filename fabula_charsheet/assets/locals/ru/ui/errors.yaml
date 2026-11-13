@@ -16,7 +16,7 @@ error_character_file_missing: "Файл персонажа не существу
 error_character_file_permission: "У вас нет прав для удаления файла персонажа."
 error_character_avatar_permission: "У вас нет прав для удаления аватара персонажа."
 page_attributes_sum_error: "Сумма ваших атрибутов должна быть равна 32."
-error_loading_state: "Не удалось загрузить сохраненное состояние ({error}). Начинаем с чистого."
+error_loading_state: "Не удалось загрузить сохраненное состояние. Начинаем с чистого."
 adding_bond_error: "Чтобы добавить Связь, необходимо указать имя и выбрать хотя бы одну эмоцию."
 error_levelup_skill_unavailable: "Умение '{skill}' нельзя повысить этому персонажу."
 error_not_enough_zenit: "Недостаточно зенитов: нужно {cost}, у вас {zenit}."

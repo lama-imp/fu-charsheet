@@ -241,11 +241,13 @@ class HeroicSkillTableWriter(TableWriter):
         if skill.required_class:
             if len(skill.required_class) == 1:
                 required_class_name = skill.required_class[0].localized_name(self.loc)
-                requirements_string = self.loc.heroic_skill_one_mastery_requirement.format(class_name=required_class_name)
                 if skill.required_skill:
-                    required_skill_name = skill.required_skill.localized_name(self.loc)
-                    requirements_string = requirements_string[:-1]
-                    requirements_string += self.loc.heroic_skill_skill_requirement.format(skill_name=required_skill_name)
+                    requirements_string = self.loc.heroic_skill_mastery_and_skill_requirement.format(
+                        class_name=required_class_name,
+                        skill_name=skill.required_skill.localized_name(self.loc),
+                    )
+                else:
+                    requirements_string = self.loc.heroic_skill_one_mastery_requirement.format(class_name=required_class_name)
             else:
                 required_classes_names = [c.localized_name(self.loc) for c in skill.required_class]
                 requirements_string = self.loc.heroic_skill_several_mastery_requirement.format(
@@ -401,12 +403,11 @@ class WeaponTableWriter(TableWriter):
         )
 
     def _process_weapon(self, s, idx=None):
-        key = f"item_{s.name}"
-        weapon_name = getattr(self.loc, key, s.name.title())
+        weapon_name = s.localized_name(self.loc)
         st.markdown(f"{weapon_name} {'♦️' if s.martial else ''}")
 
     def _process_cost(self, s, idx=None):
-        currency = getattr(self.loc, "zenit_short", "z")
+        currency = self.loc.zenit_short
         st.markdown(f"{s.cost} {currency}")
 
     def _process_accuracy(self, s, idx=None):
@@ -516,12 +517,11 @@ class ArmorTableWriter(TableWriter):
         )
 
     def _process_armor(self, s, idx=None):
-        key = f"item_{s.name}"
-        armor_name = getattr(self.loc, key, s.name.title())
+        armor_name = s.localized_name(self.loc)
         st.markdown(f"{armor_name} {'♦️' if s.martial else ''}")
 
     def _process_cost(self, s, idx=None):
-        currency = getattr(self.loc, "zenit_short", "z")
+        currency = self.loc.zenit_short
         st.markdown(f"{s.cost} {currency}")
 
     def _add_description(self, item: Armor, idx=None):
@@ -629,12 +629,11 @@ class ShieldTableWriter(TableWriter):
         )
 
     def _process_shield(self, s, idx=None):
-        key = f"item_{s.name}"
-        shield_name = getattr(self.loc, key, s.name.title())
+        shield_name = s.localized_name(self.loc)
         st.markdown(f"{shield_name} {'♦️' if s.martial else ''}")
 
     def _process_cost(self, s, idx=None):
-        currency = getattr(self.loc, "zenit_short", "z")
+        currency = self.loc.zenit_short
         st.markdown(f"{s.cost} {currency}")
 
     def _add_description(self, item: Shield, idx=None):
@@ -713,12 +712,11 @@ class AccessoryTableWriter(TableWriter):
         )
 
     def _process_name(self, s, idx=None):
-        key = f"item_{s.name}"
-        item_name = getattr(self.loc, key, s.name.title())
+        item_name = s.localized_name(self.loc)
         st.markdown(item_name)
 
     def _process_cost(self, s, idx=None):
-        currency = getattr(self.loc, "zenit_short", "z")
+        currency = self.loc.zenit_short
         st.markdown(f"{s.cost} {currency}")
 
     def _add_description(self, item: Accessory, idx=None):
@@ -743,12 +741,12 @@ class ItemTableWriter(TableWriter):
             ColumnConfig(
                 name="items",
                 width=0.2,
-                process=lambda s, idx=None: st.markdown(s.name.title()),
+                process=lambda s, idx=None: st.markdown(s.localized_name(self.loc)),
             ),
             ColumnConfig(
                 name="cost",
                 width=0.15,
-                process=lambda s, idx=None: st.markdown(f"{s.cost} z"),
+                process=lambda s, idx=None: st.markdown(f"{s.cost} {self.loc.zenit_short}"),
             ),
             ColumnConfig(
                 name="quality",

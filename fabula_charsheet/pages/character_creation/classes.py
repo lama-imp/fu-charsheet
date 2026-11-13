@@ -34,7 +34,7 @@ def build(character_controller: CharacterController):
 
     st.write(loc.page_class_current_classes_info.format(
         count=len(current_classes),
-        classes=', '.join([c.name.title() for c in current_classes])
+        classes=', '.join([c.name.localized_name(loc) for c in current_classes])
     ))
     st.write(loc.page_class_skills_added_info.format(
         added=character_controller.get_character().get_n_skill(),

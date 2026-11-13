@@ -2,7 +2,7 @@ import streamlit as st
 
 import config
 from pages.utils import show_martial, add_new_class, avatar_uploader, edit_identity, edit_attributes, edit_class, \
-    unequip_item, equip_item, add_bond, remove_bond, BondTableWriter, reset_character_creation, wizard_nav
+    unequip_item, equip_item, add_bond, remove_bond, BondTableWriter, reset_character_creation, wizard_nav, localized_theme
 from pages.controller import CharacterController, ClassController
 from pages.character_creation.creation_state import CreationState
 from data.models import CharClass, Inventory, LocNamespace
@@ -122,7 +122,7 @@ def build(controller: CharacterController):
             if st.button(loc.edit_button):
                 edit_identity_dialog(controller, loc)
         st.write(loc.page_view_identity_origin.format(identity=controller.character.identity, origin=controller.character.origin))
-        st.markdown(f"**{loc.page_view_theme}**: {controller.character.theme}")
+        st.markdown(f"**{loc.page_view_theme}**: {localized_theme(controller.character.theme, loc)}")
         st.markdown(f"**{loc.page_view_level}**: {controller.character.level}")
 
         a_col1, a_col2 = st.columns(2)
@@ -174,7 +174,7 @@ def build(controller: CharacterController):
             st.write(f"**{loc.page_view_skills}:**")
             added_skills = [skill for skill in char_class.skills if skill.current_level > 0]
             for skill in added_skills:
-                st.write(f"{skill.localized_name(loc)} - level {skill.current_level}")
+                st.write(loc.msg_skill_with_level.format(name=skill.localized_name(loc), level=skill.current_level))
             if controller.character.spells.get(char_class.name, None):
                 st.write(f"**{loc.page_view_spells}:**")
                 st.write(", ".join(spell.localized_name(loc) for spell in controller.character.spells[char_class.name]))

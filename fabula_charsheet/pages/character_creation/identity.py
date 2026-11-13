@@ -23,6 +23,7 @@ def build(controller: CharacterController):
     theme = st.selectbox(
         loc.page_identity_theme_label,
         theme_list,
+        format_func=lambda t: t.localized_name(loc),
         index=theme_idx,
         placeholder=loc.page_identity_theme_placeholder,
         accept_new_options=False,

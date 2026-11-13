@@ -200,9 +200,9 @@ def add_item(controller: CharacterController, loc: LocNamespace):
     if item_type:
         name = st.text_input(loc.page_view_item_name)
         item_dict = {
-            "name": name.lower() if name else name,
+            "name": name.strip() if name else name,
             "cost": st.number_input(loc.page_view_item_cost, value=0, step=50),
-            "quality": st.text_input(loc.page_view_item_quality, value=loc.item_no_quality),
+            "quality": st.text_input(loc.page_view_item_quality, placeholder=loc.item_no_quality).strip() or "no_quality",
          }
         input_dict = {}
         if item_type.__name__ == "Weapon":
@@ -275,7 +275,7 @@ def add_item(controller: CharacterController, loc: LocNamespace):
                 **combined_dict
             )
             controller.add_item(new_item)
-            st.toast(loc.page_view_added_item_to_equipment.format(name=combined_dict['name']))
+            st.toast(loc.page_view_added_item_to_equipment.format(name=new_item.localized_name(loc)))
             st.rerun()
         except Exception as e:
             st.error(e)
@@ -287,7 +287,7 @@ def remove_item(controller: CharacterController, loc: LocNamespace):
     for i, item in enumerate(all_items):
         c1, c2 = st.columns([0.8, 0.2])
         with c1:
-            st.write(f"{item.__class__.__name__} - {item.name.title()}")
+            st.write(f"{loc[f'item_{type(item).__name__.lower()}']} - {item.localized_name(loc)}")
         with c2:
             if st.button(loc.remove_button, key=f"{item.name}-{i}-remove"):
                 controller.remove_item(item)
@@ -464,7 +464,7 @@ def add_dance(controller: CharacterController, loc: LocNamespace):
     writer.columns = writer.add_one_dance_columns(single_selector)
     writer.write_in_columns(available_dances, description=False)
 
-    if st.button(loc.add_spell_button, disabled=(len(selected_dance) != 1)):
+    if st.button(loc.add_dance_button, key="add-new-dance", disabled=(len(selected_dance) != 1)):
         dance = selected_dance[0]
         controller.character.special.dances.append(dance)
         st.rerun()
@@ -991,7 +991,7 @@ def display_companion(controller: CharacterController, loc: LocNamespace):
                 controller.state.companion_minus_hp = min(max_hp, controller.state.companion_minus_hp + hp_input)
                 st.rerun()
         with hc4:
-            if st.button("", icon=":material/laps:", key="companion-hp-reset", help="Reset HP"):
+            if st.button("", icon=":material/laps:", key="companion-hp-reset", help=loc.reset_resource_tooltip.format(label=loc.hp)):
                 controller.state.companion_minus_hp = 0
                 st.rerun()
 

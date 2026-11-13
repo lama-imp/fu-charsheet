@@ -54,7 +54,7 @@ def list_skills(class_controller: ClassController, can_add_skill_number: int, lo
 
 
 def show_skill(skill: Skill, loc: LocNamespace):
-    st.markdown(f"**{skill.localized_name(loc)}** - level {skill.current_level}")
+    st.markdown(loc.msg_skill_with_level.format(name=f"**{skill.localized_name(loc)}**", level=skill.current_level))
 
 
 def show_martial(input_: CharClass | Character, loc: LocNamespace):
@@ -160,7 +160,7 @@ def remove_bond(controller: CharacterController, loc: LocNamespace):
         c1, c2 = st.columns([0.8, 0.2])
         with c1:
             st.write(f"**{bond.name}**")
-            st.write(" | ".join(e for e in [bond.respect, bond.trust, bond.affinity] if e is not None))
+            st.write(" | ".join(e.localized_name(loc) for e in [bond.respect, bond.trust, bond.affinity] if e is not None))
         with c2:
             if st.button(loc.remove_button, key=f"bond-{i}-remove"):
                 del controller.character.bonds[i]
@@ -255,13 +255,13 @@ def select_quality(
                 )
             case "hunter":
                 detail = st.pills(
-                    loc.page_view_select_status,
+                    loc.page_view_select_species,
                     [species for species in Species],
                     format_func=lambda x: x.localized_name(loc),
                 )
             case "dual_hunter":
                 detail = st.pills(
-                    loc.page_view_select_status,
+                    loc.page_view_select_species,
                     [species for species in Species],
                     format_func=lambda x: x.localized_name(loc),
                     selection_mode="multi",
@@ -311,13 +311,21 @@ def resource_bar(label: str, current: int, maximum: int, color: str) -> str:
     )
 
 
-def theme_options(stored: str, loc: LocNamespace) -> tuple[list[str], int | None]:
-    options = [theme.localized_name(loc) for theme in CharacterTheme]
-    if not stored:
-        return options, None
-    if stored in options:
-        return options, options.index(stored)
-    for theme in CharacterTheme:
-        if stored.strip().lower() in (theme.value, theme.localized_name(loc).lower()):
-            return options, options.index(theme.localized_name(loc))
-    return options, None
+def _resolve_theme(stored: str, loc: LocNamespace) -> CharacterTheme | None:
+    localizator = st.session_state.get("localizator")
+    locs = localizator.all() if localizator else [loc]
+    return CharacterTheme.from_stored(stored, locs)
+
+
+def theme_options(stored: str, loc: LocNamespace) -> tuple[list[CharacterTheme], int | None]:
+    """Theme choices for a selectbox (render with format_func=lambda t: t.localized_name(loc))
+    and the index of the character's current theme, if it can be resolved."""
+    options = list(CharacterTheme)
+    theme = _resolve_theme(stored, loc)
+    return options, (options.index(theme) if theme is not None else None)
+
+
+def localized_theme(stored: str, loc: LocNamespace) -> str:
+    """The character's theme in the current language; unrecognized text is shown as saved."""
+    theme = _resolve_theme(stored, loc)
+    return theme.localized_name(loc) if theme is not None else stored

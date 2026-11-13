@@ -9,7 +9,7 @@ from pages.utils import WeaponTableWriter, ArmorTableWriter, SkillTableWriter, S
     show_martial, set_view_state, get_avatar_path, avatar_update, level_up, add_chimerist_spell, \
     remove_chimerist_spell, add_item, remove_item, unequip_item, add_heroic_skill, add_spell, add_bond, remove_bond, \
     increase_attribute, add_therioform, add_dance, add_arcanum, manifest_therioform, display_equipped_item, add_invention, \
-    colored_attr, resource_bar, HP_BAR_COLOR, MP_BAR_COLOR, IP_BAR_COLOR, add_companion, display_companion, save_current_character, confirm_leaving_unsaved
+    colored_attr, resource_bar, HP_BAR_COLOR, MP_BAR_COLOR, IP_BAR_COLOR, add_companion, display_companion, save_current_character, confirm_leaving_unsaved, localized_theme
 from pages.character_view.view_state import ViewState
 
 
@@ -152,7 +152,7 @@ def build(controller: CharacterController):
                     origin=controller.character.origin
                 ))
                 st.markdown(f"**{loc.page_view_level}:** {controller.character.level}")
-                st.markdown(f"**{loc.page_view_theme}:** {controller.character.theme}")
+                st.markdown(f"**{loc.page_view_theme}:** {localized_theme(controller.character.theme, loc)}")
                 controller.state.fabula_points = st.number_input(
                     loc.page_view_fabula_points,
                     min_value=0,
@@ -220,7 +220,7 @@ def build(controller: CharacterController):
                     st.button("", icon=":material/remove:", key=f"subtract_{res}",
                               on_click=_spend_points, args=(res, amount_key, maximum))
                 with reset_col:
-                    st.button("", icon=":material/laps:", key=f"reset_{res}", help=f"{label} = {maximum()}",
+                    st.button("", icon=":material/laps:", key=f"reset_{res}", help=loc.reset_resource_tooltip.format(label=label),
                               on_click=_reset_points, args=(res,))
 
             col1, col2, col3 = st.columns(3)

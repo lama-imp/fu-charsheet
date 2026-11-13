@@ -16,6 +16,9 @@ class Localizator:
         translations = self.__translations.get(lang) or self.__translations.get(self.default_language, {})
         return LocNamespace(root=translations)
 
+    def all(self) -> list[LocNamespace]:
+        return [LocNamespace(root=t) for t in self.__translations.values()]
+
 
 def load_translations(locals_directory: Path) -> dict[LangEnum, dict[str, str]]:
     """Load and merge all locale YAML files into a {language: {key: value}} mapping.

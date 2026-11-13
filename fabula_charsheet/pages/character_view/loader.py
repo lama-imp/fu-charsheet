@@ -1,3 +1,5 @@
+import logging
+
 import streamlit as st
 
 import config
@@ -6,6 +8,8 @@ from data.models import Character, LocNamespace
 from pages.controller import CharacterController, StateLoadError
 from pages.utils import set_view_state, get_avatar_path, delete_character
 from pages.character_view.view_state import ViewState
+
+logger = logging.getLogger(__name__)
 
 
 def build(controller: CharacterController):
@@ -44,7 +48,8 @@ def build(controller: CharacterController):
                         try:
                             controller.load_character(char)
                         except StateLoadError as e:
-                            st.toast(loc.error_loading_state.format(error=e.cause), icon="⚠️")
+                            logger.warning("Failed to load state: %s", e)
+                            st.toast(loc.error_loading_state, icon="⚠️")
                         set_view_state(ViewState.view)
                 with delete_col:
                     if st.button(loc.page_load_character_delete_button, key=f"{char.id}-delete"):

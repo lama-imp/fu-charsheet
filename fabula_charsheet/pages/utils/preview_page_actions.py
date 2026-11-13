@@ -49,11 +49,12 @@ def edit_identity(controller: CharacterController, loc: LocNamespace):
     theme = st.selectbox(
         loc.page_identity_theme_label,
         options,
+        format_func=lambda t: t.localized_name(loc),
         index=default_theme_idx,
         placeholder=loc.page_identity_theme_placeholder,
         accept_new_options=False,
     )
-    if st.button("Update"):
+    if st.button(loc.update_button):
         try:
             controller.character.set_name(character_name, loc)
             controller.character.set_identity(identity, loc)

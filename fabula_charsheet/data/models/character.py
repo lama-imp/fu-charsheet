@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 from enum import StrEnum, auto
 
 from pydantic import BaseModel, Field, ConfigDict, conint
@@ -38,6 +38,23 @@ class CharacterTheme(StrEnum):
     def localized_name(self, loc: LocNamespace) -> str:
         key = f"theme_{self.name}"
         return getattr(loc, key, self.name.capitalize())
+
+    @classmethod
+    def from_stored(cls, stored: str, locs: Iterable[LocNamespace] = ()) -> CharacterTheme | None:
+        """Resolve a saved theme. New saves store the enum value; older saves
+        stored the theme's localized name (in whichever language was active),
+        so those are matched against every given locale."""
+        normalized = (stored or "").strip().lower()
+        if not normalized:
+            return None
+        for theme in cls:
+            if normalized == theme.value:
+                return theme
+        for loc in locs:
+            for theme in cls:
+                if normalized == theme.localized_name(loc).strip().lower():
+                    return theme
+        return None
 
 class InvalidCharacterField(Exception):
     pass

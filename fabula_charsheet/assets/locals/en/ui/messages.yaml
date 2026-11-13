@@ -18,3 +18,5 @@ msg_increase_attribute: "Select one of your Attributes to increase its base die 
 msg_select_bonus: "Select a parameter to increase:"
 msg_levelup_pick_one_skill: "Select exactly one skill to level up."
 page_start_over_dialog_title: "Start over"
+msg_skill_with_level: "{name} - level {level}"
+reset_resource_tooltip: "Restore {label} to maximum"
