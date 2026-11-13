@@ -35,6 +35,24 @@ def test_apply_levelup_adds_new_class_with_the_chosen_skill_leveled(controller):
     assert controller.character.get_class(ClassName.guardian).class_level() == 1
 
 
+def test_apply_levelup_into_chimerist_creates_its_spell_list(controller):
+    # Spell Mimic grants no spells, but the Spells tab only shows classes that
+    # have an entry in character.spells — without one, no "learn spell" button.
+    controller.character.level = 10
+    controller.character.classes = []
+    skill = Skill(name="spell_mimic", current_level=0, max_level=10)
+    new_class = CharClass(name=ClassName.chimerist, skills=[skill])
+    controller.apply_levelup(skill, ClassName.chimerist, new_class, [])
+    assert controller.character.spells[ClassName.chimerist] == []
+
+
+def test_add_class_keeps_spells_already_known(controller):
+    known = [Spell(name="fire", mp_cost=10)]
+    controller.character.spells = {ClassName.elementalist: known}
+    controller.add_class(CharClass(name=ClassName.elementalist))
+    assert controller.character.spells[ClassName.elementalist] == known
+
+
 def test_apply_levelup_keeps_level_and_skill_total_in_sync(controller):
     rogue_skill = Skill(name="dodge", current_level=5, max_level=5)
     controller.character.classes = [CharClass(name=ClassName.rogue, skills=[rogue_skill])]

@@ -76,6 +76,14 @@ class CharacterController:
 
     def add_class(self, new_class: CharClass):
         self.character.classes.append(new_class)
+        self._ensure_spell_lists()
+
+    def _ensure_spell_lists(self):
+        """Give every class a (possibly empty) spell list. The Spells tab only
+        shows classes listed in `character.spells`, so without an entry a
+        Chimerist with Spell Mimic never gets the "learn spell" controls."""
+        for char_class in self.character.classes:
+            self.character.spells.setdefault(char_class.name, [])
 
     def update_class(self, updated_class: CharClass):
         for i, existing in enumerate(self.character.classes):
@@ -365,6 +373,10 @@ class CharacterController:
         leak into the saved-characters list. Raises if its state can't be loaded
         (the character is still loaded, with a default state)."""
         self.character = character.model_copy(deep=True)
+        # Repair characters saved before every class got a spell list (e.g. a
+        # class gained through level-up). Done before mark_saved(), so it does
+        # not show up as an unsaved change.
+        self._ensure_spell_lists()
         try:
             self.load_state()
         finally:

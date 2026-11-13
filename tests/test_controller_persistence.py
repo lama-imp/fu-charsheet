@@ -3,7 +3,7 @@ import types
 import pytest
 import yaml
 
-from data.models import AttributeName, Character
+from data.models import AttributeName, Character, CharClass, ClassName
 from pages.controller import StateLoadError
 
 
@@ -197,6 +197,14 @@ def test_load_character_works_on_a_copy(controller, isolated_save_directories):
     controller.load_character(saved)
     controller.character.level = 8
     assert saved.level == 7
+
+
+def test_load_character_repairs_missing_spell_lists(controller, isolated_save_directories):
+    # A class gained through level-up before the fix has no spell list.
+    saved = Character(name="Ivy", classes=[CharClass(name=ClassName.chimerist)])
+    controller.load_character(saved)
+    assert controller.character.spells[ClassName.chimerist] == []
+    assert not controller.has_unsaved_changes()
 
 
 def test_unsaved_changes_tracking(controller, isolated_save_directories):
