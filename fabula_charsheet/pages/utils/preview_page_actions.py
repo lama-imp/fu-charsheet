@@ -2,10 +2,10 @@ from copy import deepcopy
 
 import streamlit as st
 
-from pages.utils import SkillTableWriter, if_show_spells, SpellTableWriter, show_skill
+from pages.utils import SkillTableWriter, if_show_spells, SpellTableWriter, show_skill, theme_options
 from config import BASE_ATTRIBUTE_SUM
 from pages.controller import CharacterController, ClassController
-from data.models import Dexterity, Might, Insight, Willpower, Item, CharacterTheme, CharClass, LocNamespace
+from data.models import Dexterity, Might, Insight, Willpower, Item, CharClass, LocNamespace
 from data import compendium as c
 
 
@@ -45,22 +45,13 @@ def edit_identity(controller: CharacterController, loc: LocNamespace):
     character_name = st.text_input(loc.page_identity_character_name_label, value=controller.character.name)
     identity = st.text_input(loc.page_identity_identity_label, value=controller.character.identity)
     origin = st.text_input(loc.page_identity_origin_label, value=controller.character.origin)
-    if controller.character.theme:
-        if controller.character.theme in CharacterTheme:
-            default_theme_idx = list(CharacterTheme).index(controller.character.theme)
-            options = [theme.localized_name(loc) for theme in CharacterTheme]
-        else:
-            options = [controller.character.theme] + [theme.localized_name(loc) for theme in CharacterTheme]
-            default_theme_idx = None
-    else:
-        options = [theme.localized_name(loc) for theme in CharacterTheme]
-        default_theme_idx = None
+    options, default_theme_idx = theme_options(controller.character.theme, loc)
     theme = st.selectbox(
         loc.page_identity_theme_label,
         options,
         index=default_theme_idx,
         placeholder=loc.page_identity_theme_placeholder,
-        accept_new_options=True,
+        accept_new_options=False,
     )
     if st.button("Update"):
         try:

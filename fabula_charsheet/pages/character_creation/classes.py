@@ -4,7 +4,7 @@ import streamlit as st
 
 from data.models import LocNamespace
 from pages.character_creation.creation_state import CreationState
-from pages.utils import set_creation_state, add_new_class, remove_class
+from pages.utils import set_creation_state, add_new_class, remove_class, wizard_nav
 from pages.controller import CharacterController, ClassController
 
 
@@ -53,5 +53,5 @@ def build(character_controller: CharacterController):
         st.warning(loc.warn_more_skill_points_needed.format(
             points=character_controller.can_add_skill_number()
         ), icon="🎯")
-    if st.button(loc.page_next_button, disabled=not_ready_for_the_next_step):
+    if wizard_nav(loc, back_to=CreationState.identity, next_disabled=not_ready_for_the_next_step):
         set_creation_state(CreationState.attributes)

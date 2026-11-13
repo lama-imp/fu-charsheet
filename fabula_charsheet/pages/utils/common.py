@@ -1,3 +1,4 @@
+import html
 import uuid
 from pathlib import Path
 from copy import deepcopy
@@ -22,6 +23,7 @@ from data.models import (
     Status,
     DamageType,
     Species,
+    CharacterTheme,
 )
 from pages.controller import ClassController, CharacterController
 from data import compendium as c
@@ -274,10 +276,48 @@ def select_quality(
 
 
 def colored_attr(name, prefix, current, base):
+    value = f"{prefix}{current}"
     if current > base:
-        color = "green"
+        value = f":green[{value}]"
     elif current < base:
-        color = "red"
-    else:
-        color = "black"
-    return f"**{name}**: <span style='color:{color}'>{prefix}{current}</span>"
+        value = f":red[{value}]"
+    return f"**{name}**: {value}"
+
+
+HP_BAR_COLOR = "#21a336"
+MP_BAR_COLOR = "#1c83e1"
+IP_BAR_COLOR = "#e8a317"
+
+
+def resource_bar(label: str, current: int, maximum: int, color: str) -> str:
+    """HTML for a labelled HP/MP/IP bar (render with unsafe_allow_html).
+    Self-contained markup, so it doesn't rely on Streamlit's internal DOM;
+    the label inherits the theme's text color."""
+    fraction = min(max(current / maximum, 0), 1) if maximum else 0
+    return (
+        # Track: same height as Streamlit's inputs/buttons (2.5rem), so a
+        # center-aligned row of bar + widgets lines up exactly. The 1rem bottom
+        # margin cancels the -1rem that Streamlit puts on every st.markdown
+        # element, which would otherwise shift the bar down when centred.
+        "<div style='position:relative;height:2.5rem;margin-bottom:1rem;border-radius:0.5rem;"
+        "background:rgba(128,128,128,0.2);overflow:hidden'>"
+        # Fill: semi-transparent, so the text stays readable in light and dark themes.
+        f"<div style='position:absolute;top:0;bottom:0;left:0;width:{fraction * 100:.1f}%;"
+        f"background:{color};opacity:0.7'></div>"
+        # Label on top, vertically centred inside the bar.
+        "<div style='position:relative;height:100%;display:flex;align-items:center;"
+        f"padding:0 0.75rem;font-weight:600'>{html.escape(str(label))} {current} / {maximum}</div>"
+        "</div>"
+    )
+
+
+def theme_options(stored: str, loc: LocNamespace) -> tuple[list[str], int | None]:
+    options = [theme.localized_name(loc) for theme in CharacterTheme]
+    if not stored:
+        return options, None
+    if stored in options:
+        return options, options.index(stored)
+    for theme in CharacterTheme:
+        if stored.strip().lower() in (theme.value, theme.localized_name(loc).lower()):
+            return options, options.index(theme.localized_name(loc))
+    return options, None

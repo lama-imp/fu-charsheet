@@ -58,7 +58,6 @@ page_view_unequip_help: "Снять этот предмет"
 
 page_view_current_attributes: "Текущие атрибуты"
 page_view_statuses: "Статусы"
-page_view_refresh_attributes: "Обновить текущие атрибуты"
 
 page_view_chimerist_spell_count: " ({current} из {max})"
 page_view_class_spells: "Заклинания класса {class_name}{chimerist_message}"

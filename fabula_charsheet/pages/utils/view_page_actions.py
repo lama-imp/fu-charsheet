@@ -12,7 +12,7 @@ from data.models import CharClass, AttributeName, Weapon, GripType, WeaponCatego
 from .table_writer import SkillTableWriter, HeroicSkillTableWriter, SpellTableWriter, TherioformTableWriter, \
     DanceTableWriter, ArcanumTableWriter, InventionTableWriter
 from .classes_page_actions import add_new_class
-from .common import join_with_and
+from .common import join_with_and, resource_bar, HP_BAR_COLOR
 from data import compendium as c
 from data import saved_characters as s
 
@@ -66,6 +66,16 @@ def level_up(controller: CharacterController, loc: LocNamespace):
     selected_class_name: ClassName | None = None
     new_class: CharClass | None = None
     can_confirm = len(st.session_state.selected_hero_skills) == 1
+
+    with st.container(border=True):
+        if st.session_state.selected_hero_skills:
+            st.write(loc.msg_skills_selected)
+            for skill in st.session_state.selected_hero_skills:
+                skill_class = c.COMPENDIUM.get_class_name_from_skill(skill)
+                class_label = f" ({skill_class.localized_name(loc)})" if skill_class else ""
+                st.markdown(f"- **{skill.localized_name(loc)}**{class_label}")
+        if not can_confirm:
+            st.info(loc.msg_levelup_pick_one_skill)
 
     if can_confirm:
         selected_skill = st.session_state.selected_hero_skills[0]
@@ -967,26 +977,20 @@ def display_companion(controller: CharacterController, loc: LocNamespace):
     with hp_col:
         max_hp = controller.companion_max_hp()
         current_hp = controller.companion_current_hp()
-        st.progress(
-            max(current_hp / max_hp, 0) if max_hp else 0,
-            text=f"{loc.companion_hp} {current_hp} / {max_hp}"
-        )
-        hc1, hc2, hc3, hc4 = st.columns([0.4, 0.2, 0.2, 0.2])
+        st.markdown(resource_bar(loc.companion_hp, current_hp, max_hp, HP_BAR_COLOR), unsafe_allow_html=True)
+        hc1, hc2, hc3, hc4 = st.columns([0.4, 0.2, 0.2, 0.2], vertical_alignment="center")
         with hc1:
-            hp_input = st.number_input("companion_hp_input", min_value=0, label_visibility="hidden", value=10,
+            hp_input = st.number_input("companion_hp_input", min_value=0, label_visibility="collapsed", value=10,
                                        key="companion-hp-input")
         with hc2:
-            st.write("")
             if st.button("", icon=":material/add:", key="companion-hp-add"):
                 controller.state.companion_minus_hp = max(0, controller.state.companion_minus_hp - hp_input)
                 st.rerun()
         with hc3:
-            st.write("")
             if st.button("", icon=":material/remove:", key="companion-hp-subtract"):
                 controller.state.companion_minus_hp = min(max_hp, controller.state.companion_minus_hp + hp_input)
                 st.rerun()
         with hc4:
-            st.write("")
             if st.button("", icon=":material/laps:", key="companion-hp-reset", help="Reset HP"):
                 controller.state.companion_minus_hp = 0
                 st.rerun()
