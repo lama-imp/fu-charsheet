@@ -120,7 +120,7 @@ def add_spell(controller: CharacterController, class_name: ClassName, loc: LocNa
         if st.checkbox("add spell",
                        value=(spell in selected_spells),
                        label_visibility="hidden",
-                       key=f"{spell.name}-toggle"
+                       key=f"spell-{spell.name}-toggle"
                        ):
             if spell not in selected_spells:
                 selected_spells.append(spell)
@@ -169,12 +169,12 @@ def add_chimerist_spell(controller: CharacterController, loc: LocNamespace):
 
 def remove_chimerist_spell(controller: CharacterController, loc: LocNamespace):
     chimerist_spells = controller.character.spells[ClassName.chimerist]
-    for spell in chimerist_spells:
+    for i, spell in enumerate(chimerist_spells):
         c1, c2 = st.columns([0.8, 0.2])
         with c1:
             st.write(spell.localized_name(loc))
         with c2:
-            if st.button(loc.remove_button, key=f"{spell.name}-remove"):
+            if st.button(loc.remove_button, key=f"chimerist-spell-{i}-remove"):
                 controller.remove_spell(spell, ClassName.chimerist)
                 st.rerun()
 
@@ -312,7 +312,7 @@ def add_heroic_skill(controller: CharacterController, loc: LocNamespace):
                 if st.checkbox("add spell",
                                value=(spell in selected_spells),
                                label_visibility="hidden",
-                               key=f"{spell.name}-toggle"
+                               key=f"spell-{spell.name}-toggle"
                                ):
                     if spell not in selected_spells:
                         selected_spells.append(spell)
@@ -412,7 +412,7 @@ def add_therioform(controller: CharacterController, loc: LocNamespace):
         if st.checkbox("add therioform",
                        value=(therioform in selected_therioform),
                        label_visibility="hidden",
-                       key=f"{therioform.name}-toggle"
+                       key=f"therioform-{therioform.name}-toggle"
                        ):
             if therioform not in selected_therioform:
                 selected_therioform.append(therioform)
@@ -439,7 +439,7 @@ def add_dance(controller: CharacterController, loc: LocNamespace):
         if st.checkbox("add dance",
                        value=(dance in selected_dance),
                        label_visibility="hidden",
-                       key=f"{dance.name}-toggle"
+                       key=f"dance-{dance.name}-toggle"
                        ):
             if dance not in selected_dance:
                 selected_dance.append(dance)
@@ -465,7 +465,7 @@ def add_invention(controller: CharacterController, loc: LocNamespace):
         if st.checkbox("add invention",
                        value=(invention in selected_invention),
                        label_visibility="hidden",
-                       key=f"{invention.name}-toggle"
+                       key=f"invention-{invention.name}-toggle"
                        ):
             if invention not in selected_invention:
                 selected_invention.append(invention)
@@ -493,7 +493,7 @@ def manifest_therioform(controller: CharacterController, loc: LocNamespace):
         if st.checkbox("add therioform",
                        value=(therioform in selected_therioforms),
                        label_visibility="hidden",
-                       key=f"{therioform.name}-toggle"
+                       key=f"therioform-{therioform.name}-toggle"
                        ):
             if therioform not in selected_therioforms:
                 selected_therioforms.append(therioform)
@@ -635,7 +635,7 @@ def add_arcanum(controller: CharacterController, loc: LocNamespace):
         if st.checkbox("add arcanum",
                        value=(arcanum in selected_arcanum),
                        label_visibility="hidden",
-                       key=f"{arcanum.name}-toggle"
+                       key=f"arcanum-{arcanum.name}-toggle"
                        ):
             if arcanum not in selected_arcanum:
                 selected_arcanum.append(arcanum)

@@ -173,14 +173,14 @@ class SkillTableWriter(TableWriter):
                 min_value=0,
                 max_value=skill.max_level,
                 value=skill.current_level,
-                key=f"{skill.name}-slider",
+                key=f"skill-{skill.name}-slider",
                 label_visibility="hidden",
             )
         else:
             st.toggle(
                 "level2",
                 value=bool(skill.current_level),
-                key=f"{skill.name}-toggle",
+                key=f"skill-{skill.name}-toggle",
                 label_visibility="hidden",
             )
 
@@ -194,18 +194,18 @@ class SkillTableWriter(TableWriter):
     def _sync_skill_levels(skills: list[Skill]):
         for skill in skills:
             if skill.max_level > 1:
-                key = f"{skill.name}-slider"
+                key = f"skill-{skill.name}-slider"
                 if key in st.session_state:
                     skill.current_level = int(st.session_state[key])
             else:
-                key = f"{skill.name}-toggle"
+                key = f"skill-{skill.name}-toggle"
                 if key in st.session_state:
                     skill.current_level = int(bool(st.session_state[key]))
 
     @staticmethod
     def _level_input_for_levelup(skill: Skill, idx=None):
         st.session_state.selected_hero_skills = st.session_state.get("selected_hero_skills", [])
-        checked = st.checkbox(" ", key=f"{skill.name}-point", label_visibility="hidden")
+        checked = st.checkbox(" ", key=f"skill-{skill.name}-point", label_visibility="hidden")
         if checked and skill not in st.session_state.selected_hero_skills:
             st.session_state.selected_hero_skills.append(skill)
         elif not checked and skill in st.session_state.selected_hero_skills:
@@ -259,7 +259,7 @@ class HeroicSkillTableWriter(TableWriter):
         if st.checkbox("add skill",
                        value=(skill in st.session_state.selected_hero_skills),
                        label_visibility="hidden",
-                       key=f"{skill.name}-toggle"
+                       key=f"heroic-{skill.name}-toggle"
                        ):
             if skill not in st.session_state.selected_hero_skills:
                 st.session_state.selected_hero_skills.append(skill)
@@ -346,7 +346,7 @@ class SpellTableWriter(TableWriter):
         if st.checkbox("add spell",
                        value=(spell in st.session_state.class_spells),
                        label_visibility="hidden",
-                       key=f"{spell.name}-toggle"
+                       key=f"spell-{spell.name}-toggle"
                        ):
             if spell not in st.session_state.class_spells:
                 st.session_state.class_spells.append(spell)
@@ -929,7 +929,7 @@ class BondTableWriter(TableWriter):
 
 def add_point(skill: Skill, idx=None):
     st.session_state.selected_hero_skills = st.session_state.get("selected_hero_skills", [])
-    if st.checkbox(" ", key=f"{skill.name}-point", label_visibility="hidden"):
+    if st.checkbox(" ", key=f"skill-{skill.name}-point", label_visibility="hidden"):
         if skill not in st.session_state.selected_hero_skills:
             st.session_state.selected_hero_skills.append(skill)
     else:

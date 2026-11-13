@@ -154,14 +154,14 @@ def add_bond(controller: CharacterController, loc: LocNamespace):
         st.rerun()
 
 def remove_bond(controller: CharacterController, loc: LocNamespace):
-    for bond in controller.character.bonds:
+    for i, bond in enumerate(controller.character.bonds):
         c1, c2 = st.columns([0.8, 0.2])
         with c1:
             st.write(f"**{bond.name}**")
             st.write(" | ".join(e for e in [bond.respect, bond.trust, bond.affinity] if e is not None))
         with c2:
-            if st.button(loc.remove_button, key=f"{bond.name}-remove"):
-                controller.character.bonds.remove(bond)
+            if st.button(loc.remove_button, key=f"bond-{i}-remove"):
+                del controller.character.bonds[i]
                 st.rerun()
 
 

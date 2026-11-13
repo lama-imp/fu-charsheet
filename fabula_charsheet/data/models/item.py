@@ -35,8 +35,12 @@ class Item(BaseModel):
         else:
             try:
                 loc_quality =  getattr(loc, f"quality_{self.quality}_short")
-                if self.quality_detail:
-                    return loc_quality.format(*[q.localized_name(loc) for q in self.quality_detail])
-                return loc_quality
             except AttributeError:
                 return self.quality
+            if self.quality_detail:
+                try:
+                    return loc_quality.format(*[q.localized_name(loc) for q in self.quality_detail])
+                except (IndexError, KeyError, ValueError):
+                    # quality_detail doesn't match the placeholders in the translation
+                    pass
+            return loc_quality
