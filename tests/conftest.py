@@ -49,9 +49,9 @@ def assets_dir(tmp_path: Path) -> Path:
             "bonus_damage": 6,
         }
     ]
-    (equipment / 'weapons.yaml').write_text(json.dumps(weapons))
-    (equipment / 'armors.yaml').write_text('[]')
-    (equipment / 'shields.yaml').write_text('[]')
+    (equipment / 'weapons.yaml').write_text(json.dumps(weapons), encoding="utf-8")
+    (equipment / 'armors.yaml').write_text('[]', encoding="utf-8")
+    (equipment / 'shields.yaml').write_text('[]', encoding="utf-8")
 
     classes = tmp_path / 'classes'
     classes.mkdir()
@@ -75,29 +75,29 @@ def assets_dir(tmp_path: Path) -> Path:
             {"name": "arcane_regeneration", "current_level": 0, "max_level": 2}
         ]
     }
-    (classes / 'elementalist.yaml').write_text(json.dumps(elementalist))
-    (classes / 'sharpshooter.yaml').write_text(json.dumps(sharpshooter))
-    (classes / 'arcanist.yaml').write_text(json.dumps(arcanist))
+    (classes / 'elementalist.yaml').write_text(json.dumps(elementalist), encoding="utf-8")
+    (classes / 'sharpshooter.yaml').write_text(json.dumps(sharpshooter), encoding="utf-8")
+    (classes / 'arcanist.yaml').write_text(json.dumps(arcanist), encoding="utf-8")
 
     spells = tmp_path / 'spells'
     spells.mkdir()
     (spells / 'elementalist.yaml').write_text(json.dumps([
         {"name": "aura", "is_offensive": False, "mp_cost": 5, "target": "one_creature", "duration": "scene"}
-    ]))
+    ]), encoding="utf-8")
     (spells / 'spiritist.yaml').write_text(json.dumps([
         {"name": "heal", "is_offensive": False, "mp_cost": 5, "target": "one_creature", "duration": "scene"}
-    ]))
+    ]), encoding="utf-8")
 
     skills_dir = tmp_path / 'skills'
     skills_dir.mkdir()
     (skills_dir / 'heroic_skills.yaml').write_text(json.dumps([
         {"name": "ambidextrous"}
-    ]))
+    ]), encoding="utf-8")
 
     special = tmp_path / 'special'
     special.mkdir()
-    (special / 'dances.yaml').write_text('[]')
-    (special / 'therioforms.yaml').write_text('[]')
+    (special / 'dances.yaml').write_text('[]', encoding="utf-8")
+    (special / 'therioforms.yaml').write_text('[]', encoding="utf-8")
 
     qualities = tmp_path / 'qualities'
     qualities.mkdir()
@@ -113,6 +113,10 @@ def loc():
         "error_class_not_found": "Class {class_name} not found.",
         "error_unexpected_class_type": "Unexpected class type: {class_type}",
         "error_equipping_item": "Cannot equip this item.",
+        "error_equipping_martial": "Cannot use this martial item.",
+        "error_not_enough_zenit": "Costs {cost}, you have {zenit}.",
+        "error_invalid_level": "Level {level} should be between 1 and 60.",
+        "error_levelup_skill_unavailable": "Skill {skill} cannot be leveled up.",
     })
 
 

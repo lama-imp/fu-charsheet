@@ -30,9 +30,9 @@ def test_init_localizator_duplicate_keys(tmp_path, streamlit_stub):
     ru_dir = tmp_path / 'ru'
     en_dir.mkdir()
     ru_dir.mkdir()
-    (en_dir / 'a.yaml').write_text('{"key1": "value1"}')
-    (en_dir / 'b.yaml').write_text('{"key1": "value2"}')
-    (ru_dir / 'a.yaml').write_text('{"key1": "value1"}')
+    (en_dir / 'a.yaml').write_text('{"key1": "value1"}', encoding="utf-8")
+    (en_dir / 'b.yaml').write_text('{"key1": "value2"}', encoding="utf-8")
+    (ru_dir / 'a.yaml').write_text('{"key1": "value1"}', encoding="utf-8")
     with pytest.raises(ValueError):
         init_localizator(tmp_path)
 

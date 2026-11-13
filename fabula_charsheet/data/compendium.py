@@ -86,8 +86,8 @@ class Compendium:
 
 
 def get_assets_from_file(file_path: Path, asset_class: type[BaseModel]) -> list[BaseModel]:
-    with file_path.open(encoding='utf8') as f:
-        raw_assets = yaml.load(f, Loader=yaml.UnsafeLoader)
+    with file_path.open(encoding='utf-8') as f:
+        raw_assets = yaml.safe_load(f)
         if isinstance(raw_assets, list):
             return [asset_class(**item) for item in raw_assets]
         else:

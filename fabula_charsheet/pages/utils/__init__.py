@@ -1,13 +1,14 @@
 from .page_state import (
     set_creation_state,
-    set_view_state
+    set_view_state,
+    reset_character_creation,
+    wizard_nav,
 )
 
 from .table_writer import (
     TableWriter,
     SkillTableWriter,
     SpellTableWriter,
-    HeroicSkillTableWriter,
     WeaponTableWriter,
     ArmorTableWriter,
     ShieldTableWriter,
@@ -33,6 +34,13 @@ from .common import (
     remove_bond,
     upgrade_item,
     colored_attr,
+    resource_bar,
+    theme_options,
+    theme_label,
+    localized_theme,
+    HP_BAR_COLOR,
+    MP_BAR_COLOR,
+    IP_BAR_COLOR,
 )
 
 from .view_page_actions import (
@@ -53,6 +61,8 @@ from .view_page_actions import (
     add_invention,
     add_companion,
     display_companion,
+    save_current_character,
+    confirm_leaving_unsaved,
 )
 
 from .classes_page_actions import (

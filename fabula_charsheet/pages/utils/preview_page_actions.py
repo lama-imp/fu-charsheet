@@ -2,10 +2,10 @@ from copy import deepcopy
 
 import streamlit as st
 
-from pages.utils import SkillTableWriter, if_show_spells, SpellTableWriter, show_skill
+from pages.utils import SkillTableWriter, if_show_spells, SpellTableWriter, show_skill, theme_options, theme_label
 from config import BASE_ATTRIBUTE_SUM
 from pages.controller import CharacterController, ClassController
-from data.models import Dexterity, Might, Insight, Willpower, Item, CharacterTheme, CharClass, LocNamespace
+from data.models import Dexterity, Might, Insight, Willpower, Item, CharClass, LocNamespace
 from data import compendium as c
 
 
@@ -24,8 +24,7 @@ def unequip_item(controller, category: str):
 
 
 def disable_equip_button(controller, item: Item) -> bool:
-    equipped_items = controller.equipped_items()
-    return item in equipped_items
+    return controller.is_equipped(item)
 
 
 def avatar_uploader(loc: LocNamespace):
@@ -46,24 +45,16 @@ def edit_identity(controller: CharacterController, loc: LocNamespace):
     character_name = st.text_input(loc.page_identity_character_name_label, value=controller.character.name)
     identity = st.text_input(loc.page_identity_identity_label, value=controller.character.identity)
     origin = st.text_input(loc.page_identity_origin_label, value=controller.character.origin)
-    if controller.character.theme:
-        if controller.character.theme in CharacterTheme:
-            default_theme_idx = list(CharacterTheme).index(controller.character.theme)
-            options = [theme.localized_name(loc) for theme in CharacterTheme]
-        else:
-            options = [controller.character.theme] + [theme.localized_name(loc) for theme in CharacterTheme]
-            default_theme_idx = None
-    else:
-        options = [theme.localized_name(loc) for theme in CharacterTheme]
-        default_theme_idx = None
+    options, default_theme_idx = theme_options(controller.character.theme, loc)
     theme = st.selectbox(
         loc.page_identity_theme_label,
         options,
+        format_func=theme_label(loc),
         index=default_theme_idx,
         placeholder=loc.page_identity_theme_placeholder,
         accept_new_options=True,
     )
-    if st.button("Update"):
+    if st.button(loc.update_button):
         try:
             controller.character.set_name(character_name, loc)
             controller.character.set_identity(identity, loc)
@@ -113,18 +104,20 @@ def edit_class(character_controller: CharacterController, char_class: CharClass,
     class_controller = ClassController()
     class_controller.char_class = deepcopy(char_class)
     casting_skill = class_controller.char_class.get_spell_skill()
-    st.session_state.class_spells = character_controller.character.spells[char_class.name]
+    # Work on a copy, so closing the dialog without saving changes nothing.
+    st.session_state.class_spells = list(character_controller.character.spells.get(char_class.name, []))
 
     with st.expander(loc.page_class_choose_skills_expander):
         SkillTableWriter(loc).write_in_columns(class_controller.char_class.skills)
 
-    can_add_skill_number = character_controller.can_add_skill_number()
+    # Counted with the edited skill levels, not the ones before the edit.
+    skill_points_left = character_controller.skill_points_left_with(class_controller.char_class)
 
     if class_controller.char_class.class_level() < 1:
         class_not_ready = True
         st.error(loc.error_class_need_skill)
-    elif can_add_skill_number < 0:
-        st.error(loc.error_class_remove_skill.format(levels=abs(can_add_skill_number)))
+    elif skill_points_left < 0:
+        st.error(loc.error_class_remove_skill.format(levels=abs(skill_points_left)))
         class_not_ready = True
     else:
         st.write(loc.msg_skills_selected)
@@ -143,15 +136,16 @@ def edit_class(character_controller: CharacterController, char_class: CharClass,
         if total_class_spells != max_n_spells:
             class_not_ready = True
             st.error(loc.error_class_select_exact_spells.format(max_n_spells=max_n_spells, casting_skill=casting_skill.localized_name(loc)))
-        else:
-            class_not_ready = False
 
     if st.button(loc.update_class_button, disabled=class_not_ready):
         try:
             character_controller.update_class(class_controller.char_class)
-            character_controller.character.spells[char_class.name] = st.session_state.class_spells
+            if if_show_spells(casting_skill):
+                character_controller.character.spells[char_class.name] = list(st.session_state.class_spells)
+            else:
+                character_controller.character.spells.pop(char_class.name, None)
             st.session_state.class_spells = []
-            st.info(loc.msg_class_updated.format(class_name=char_class.localized_name(loc)))
+            st.toast(loc.msg_class_updated.format(class_name=char_class.name.localized_name(loc)))
             st.rerun()
         except Exception as e:
             st.error(e, icon="🚨")

@@ -2,3 +2,5 @@ warn_edit_equipment_lost: "На следующем шаге вы не сможе
 warn_more_skill_points_needed: "Вам нужно распределить ещё {points} очков умений."
 warn_exact_skill_points_needed: "Вам нужно распределить ровно {level} очков умений."
 warn_confirm_delete_character: "Вы уверены, что хотите полностью удалить этого персонажа?"
+warn_confirm_start_over: "Вы уверены, что хотите начать заново? Всё, что введено для этого персонажа, будет потеряно."
+warn_confirm_remove_class: "Вы уверены, что хотите удалить класс {class_name}? Его умения и заклинания будут потеряны."

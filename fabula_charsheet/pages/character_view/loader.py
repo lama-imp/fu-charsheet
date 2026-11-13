@@ -1,11 +1,15 @@
+import logging
+
 import streamlit as st
 
 import config
 from data import saved_characters as s
 from data.models import Character, LocNamespace
-from pages.controller import CharacterController
+from pages.controller import CharacterController, StateLoadError
 from pages.utils import set_view_state, get_avatar_path, delete_character
 from pages.character_view.view_state import ViewState
+
+logger = logging.getLogger(__name__)
 
 
 def build(controller: CharacterController):
@@ -17,6 +21,14 @@ def build(controller: CharacterController):
 
     st.set_page_config(layout="centered")
     st.title(loc.page_load_character_title)
+
+    if s.SAVED_CHARS.failed_files:
+        st.warning(
+            loc.page_load_character_failed_files.format(
+                files=", ".join(p.name for p in s.SAVED_CHARS.failed_files)
+            ),
+            icon="⚠️",
+        )
 
     if s.SAVED_CHARS.char_list:
         for char in s.SAVED_CHARS.char_list:
@@ -33,11 +45,11 @@ def build(controller: CharacterController):
                 load_col, delete_col = st.columns(2)
                 with load_col:
                     if st.button(loc.page_load_character_load_button, key=f"{char.id}-loader"):
-                        controller.character = char
                         try:
-                            controller.load_state()
-                        except Exception as e:
-                            st.toast(e)
+                            controller.load_character(char)
+                        except StateLoadError as e:
+                            logger.warning("Failed to load state: %s", e)
+                            st.toast(loc.error_loading_state, icon="⚠️")
                         set_view_state(ViewState.view)
                 with delete_col:
                     if st.button(loc.page_load_character_delete_button, key=f"{char.id}-delete"):

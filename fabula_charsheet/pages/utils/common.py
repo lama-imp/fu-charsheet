@@ -1,7 +1,9 @@
+import html
 import uuid
 from pathlib import Path
 from copy import deepcopy
 from itertools import chain
+from typing import Callable
 
 import streamlit as st
 
@@ -22,6 +24,7 @@ from data.models import (
     Status,
     DamageType,
     Species,
+    CharacterTheme,
 )
 from pages.controller import ClassController, CharacterController
 from data import compendium as c
@@ -52,7 +55,7 @@ def list_skills(class_controller: ClassController, can_add_skill_number: int, lo
 
 
 def show_skill(skill: Skill, loc: LocNamespace):
-    st.markdown(f"**{skill.localized_name(loc)}** - level {skill.current_level}")
+    st.markdown(loc.msg_skill_with_level.format(name=f"**{skill.localized_name(loc)}**", level=skill.current_level))
 
 
 def show_martial(input_: CharClass | Character, loc: LocNamespace):
@@ -83,7 +86,10 @@ def add_item_as(item: Item, inventory: Inventory, loc: LocNamespace):
     new_name = st.text_input(loc.page_equipment_write_new_name)
     button_label = loc.page_equipment_add_item_as_button.format(name=new_name)
 
-    if st.button(button_label, disabled=not new_name):
+    cannot_afford = inventory.zenit < item.cost
+    if cannot_afford:
+        st.warning(loc.error_not_enough_zenit.format(cost=item.cost, zenit=inventory.zenit), icon="💰")
+    if st.button(button_label, disabled=not new_name or cannot_afford):
         item = deepcopy(item)
         item.name = new_name
         if isinstance(item, Armor):
@@ -151,14 +157,14 @@ def add_bond(controller: CharacterController, loc: LocNamespace):
         st.rerun()
 
 def remove_bond(controller: CharacterController, loc: LocNamespace):
-    for bond in controller.character.bonds:
+    for i, bond in enumerate(controller.character.bonds):
         c1, c2 = st.columns([0.8, 0.2])
         with c1:
             st.write(f"**{bond.name}**")
-            st.write(" | ".join(e for e in [bond.respect, bond.trust, bond.affinity] if e is not None))
+            st.write(" | ".join(e.localized_name(loc) for e in [bond.respect, bond.trust, bond.affinity] if e is not None))
         with c2:
-            if st.button(loc.remove_button, key=f"{bond.name}-remove"):
-                controller.character.bonds.remove(bond)
+            if st.button(loc.remove_button, key=f"bond-{i}-remove"):
+                del controller.character.bonds[i]
                 st.rerun()
 
 
@@ -181,18 +187,23 @@ def upgrade_item(controller: CharacterController, item: Item, loc: LocNamespace)
 
     selected_quality, detail = select_quality(available_qualities, loc)
 
+    cannot_afford = selected_quality is not None and not controller.can_afford(selected_quality.cost)
+    if cannot_afford:
+        st.warning(loc.error_not_enough_zenit.format(
+            cost=selected_quality.cost, zenit=controller.character.inventory.zenit
+        ), icon="💰")
+
     if st.button(
             loc.upgrade_button,
             key=f'{item.name}-upgrade-confirm',
-            disabled=not selected_quality,
+            disabled=not selected_quality or cannot_afford,
     ):
-        for category in ("main_hand", "off_hand", "armor", "accessory"):
-            if item == getattr(controller.character.inventory.equipped, category):
-                controller.unequip_item(category)
-        item.quality = selected_quality.name
-        item.quality_detail = detail
-        controller.apply_quality_effects(item, selected_quality)
-        st.rerun()
+        try:
+            controller.upgrade_item(item, selected_quality, detail)
+        except ValueError as e:
+            st.error(str(e))
+        else:
+            st.rerun()
 
 
 def select_quality(
@@ -245,13 +256,13 @@ def select_quality(
                 )
             case "hunter":
                 detail = st.pills(
-                    loc.page_view_select_status,
+                    loc.page_view_select_species,
                     [species for species in Species],
                     format_func=lambda x: x.localized_name(loc),
                 )
             case "dual_hunter":
                 detail = st.pills(
-                    loc.page_view_select_status,
+                    loc.page_view_select_species,
                     [species for species in Species],
                     format_func=lambda x: x.localized_name(loc),
                     selection_mode="multi",
@@ -266,10 +277,65 @@ def select_quality(
 
 
 def colored_attr(name, prefix, current, base):
+    value = f"{prefix}{current}"
     if current > base:
-        color = "green"
+        value = f":green[{value}]"
     elif current < base:
-        color = "red"
-    else:
-        color = "black"
-    return f"**{name}**: <span style='color:{color}'>{prefix}{current}</span>"
+        value = f":red[{value}]"
+    return f"**{name}**: {value}"
+
+
+HP_BAR_COLOR = "#21a336"
+MP_BAR_COLOR = "#1c83e1"
+IP_BAR_COLOR = "#e8a317"
+
+
+def resource_bar(label: str, current: int, maximum: int, color: str) -> str:
+    """HTML for a labelled HP/MP/IP bar (render with unsafe_allow_html).
+    Self-contained markup, so it doesn't rely on Streamlit's internal DOM;
+    the label inherits the theme's text color."""
+    fraction = min(max(current / maximum, 0), 1) if maximum else 0
+    return (
+        # Track: same height as Streamlit's inputs/buttons (2.5rem), so a
+        # center-aligned row of bar + widgets lines up exactly. The 1rem bottom
+        # margin cancels the -1rem that Streamlit puts on every st.markdown
+        # element, which would otherwise shift the bar down when centred.
+        "<div style='position:relative;height:2.5rem;margin-bottom:1rem;border-radius:0.5rem;"
+        "background:rgba(128,128,128,0.2);overflow:hidden'>"
+        # Fill: semi-transparent, so the text stays readable in light and dark themes.
+        f"<div style='position:absolute;top:0;bottom:0;left:0;width:{fraction * 100:.1f}%;"
+        f"background:{color};opacity:0.7'></div>"
+        # Label on top, vertically centred inside the bar.
+        "<div style='position:relative;height:100%;display:flex;align-items:center;"
+        f"padding:0 0.75rem;font-weight:600'>{html.escape(str(label))} {current} / {maximum}</div>"
+        "</div>"
+    )
+
+
+def _resolve_theme(stored: str, loc: LocNamespace) -> CharacterTheme | None:
+    localizator = st.session_state.get("localizator")
+    locs = localizator.all() if localizator else [loc]
+    return CharacterTheme.from_stored(stored, locs)
+
+
+def theme_options(stored: str, loc: LocNamespace) -> tuple[list[CharacterTheme | str], int | None]:
+    """Theme choices for a selectbox (render with format_func=theme_label(loc), accept_new_options=True)
+    and the index of the character's current theme. A custom (non-preset) theme is kept as its own option."""
+    options: list[CharacterTheme | str] = list(CharacterTheme)
+    if not stored:
+        return options, None
+    theme = _resolve_theme(stored, loc)
+    if theme is not None:
+        return options, options.index(theme)
+    return [stored, *options], 0
+
+
+def theme_label(loc: LocNamespace) -> Callable[[CharacterTheme | str], str]:
+    """format_func for theme selectboxes: preset themes are localized, custom text is shown as typed."""
+    return lambda t: t.localized_name(loc) if isinstance(t, CharacterTheme) else str(t)
+
+
+def localized_theme(stored: str, loc: LocNamespace) -> str:
+    """The character's theme in the current language; unrecognized text is shown as saved."""
+    theme = _resolve_theme(stored, loc)
+    return theme.localized_name(loc) if theme is not None else stored

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 from enum import StrEnum, auto
 
 from pydantic import BaseModel, Field, ConfigDict, conint
@@ -39,6 +39,23 @@ class CharacterTheme(StrEnum):
         key = f"theme_{self.name}"
         return getattr(loc, key, self.name.capitalize())
 
+    @classmethod
+    def from_stored(cls, stored: str, locs: Iterable[LocNamespace] = ()) -> CharacterTheme | None:
+        """Resolve a saved theme. New saves store the enum value; older saves
+        stored the theme's localized name (in whichever language was active),
+        so those are matched against every given locale."""
+        normalized = (stored or "").strip().lower()
+        if not normalized:
+            return None
+        for theme in cls:
+            if normalized == theme.value:
+                return theme
+        for loc in locs:
+            for theme in cls:
+                if normalized == theme.localized_name(loc).strip().lower():
+                    return theme
+        return None
+
 class InvalidCharacterField(Exception):
     pass
 
@@ -53,12 +70,15 @@ class CharSpecial(BaseModel):
     def get_special(self, attribute: str):
         return getattr(self, attribute, None)
 
+MAX_LEVEL = 60
+
+
 class Character(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
     name: str = ""
-    level: conint(ge=1, le=60) = 5
+    level: conint(ge=1, le=MAX_LEVEL) = 5
     identity: str = ""
     theme: str = ""
     origin: str = ""
@@ -74,9 +94,9 @@ class Character(BaseModel):
     bonds: list[Bond] = list()
 
     def set_level(self, level: int, loc: LocNamespace):
-        if not 1 <= level <= 60:
+        if not 1 <= level <= MAX_LEVEL:
             msg = loc.error_invalid_level.format(level=level) if hasattr(loc,
-                                                                         "error_invalid_level") else f"Level {level} should be between 1 and 60."
+                                                                         "error_invalid_level") else f"Level {level} should be between 1 and {MAX_LEVEL}."
             raise InvalidCharacterField(msg)
         self.level = level
 

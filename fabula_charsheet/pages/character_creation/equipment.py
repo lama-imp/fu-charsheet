@@ -3,7 +3,7 @@ import random
 import streamlit as st
 
 from .creation_state import CreationState
-from pages.utils import set_creation_state, WeaponTableWriter, ArmorTableWriter, show_martial, ShieldTableWriter
+from pages.utils import set_creation_state, wizard_nav, WeaponTableWriter, ArmorTableWriter, show_martial, ShieldTableWriter
 from pages.controller import CharacterController
 from data.models import Inventory, LocNamespace
 from data import compendium as c
@@ -59,7 +59,12 @@ def build(controller: CharacterController):
         additional_zenit=st.session_state.additional_zenit
     ), icon="💰")
 
-    if st.button(loc.page_next_button):
+    if wizard_nav(loc, back_to=CreationState.attributes):
+        # Lets "Back" from the preview restore this step as it was left.
+        st.session_state.equipment_snapshot = (
+            st.session_state.start_equipment.model_copy(deep=True),
+            st.session_state.additional_zenit,
+        )
         controller.character.inventory = st.session_state.start_equipment
         st.session_state.start_equipment = Inventory()
         controller.character.inventory.zenit += st.session_state.additional_zenit

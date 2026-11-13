@@ -73,6 +73,17 @@ class TableWriter:
             if description:
                 self._add_description(item, item_idx)
 
+    def with_select_column(self, selector: Callable) -> tuple[ColumnConfig, ...]:
+        """Return this writer's columns plus a trailing selection column."""
+        return (
+            *self.columns,
+            ColumnConfig(
+                name="select",
+                width=0.1,
+                process=selector,
+            ),
+        )
+
     def _write_header(self):
         for cell, column_name in zip(
             st.columns(spec=[col.width for col in self.columns]),
@@ -173,14 +184,14 @@ class SkillTableWriter(TableWriter):
                 min_value=0,
                 max_value=skill.max_level,
                 value=skill.current_level,
-                key=f"{skill.name}-slider",
+                key=f"skill-{skill.name}-slider",
                 label_visibility="hidden",
             )
         else:
             st.toggle(
                 "level2",
                 value=bool(skill.current_level),
-                key=f"{skill.name}-toggle",
+                key=f"skill-{skill.name}-toggle",
                 label_visibility="hidden",
             )
 
@@ -194,18 +205,18 @@ class SkillTableWriter(TableWriter):
     def _sync_skill_levels(skills: list[Skill]):
         for skill in skills:
             if skill.max_level > 1:
-                key = f"{skill.name}-slider"
+                key = f"skill-{skill.name}-slider"
                 if key in st.session_state:
                     skill.current_level = int(st.session_state[key])
             else:
-                key = f"{skill.name}-toggle"
+                key = f"skill-{skill.name}-toggle"
                 if key in st.session_state:
                     skill.current_level = int(bool(st.session_state[key]))
 
     @staticmethod
     def _level_input_for_levelup(skill: Skill, idx=None):
         st.session_state.selected_hero_skills = st.session_state.get("selected_hero_skills", [])
-        checked = st.checkbox(" ", key=f"{skill.name}-point", label_visibility="hidden")
+        checked = st.checkbox(" ", key=f"skill-{skill.name}-point", label_visibility="hidden")
         if checked and skill not in st.session_state.selected_hero_skills:
             st.session_state.selected_hero_skills.append(skill)
         elif not checked and skill in st.session_state.selected_hero_skills:
@@ -241,11 +252,13 @@ class HeroicSkillTableWriter(TableWriter):
         if skill.required_class:
             if len(skill.required_class) == 1:
                 required_class_name = skill.required_class[0].localized_name(self.loc)
-                requirements_string = self.loc.heroic_skill_one_mastery_requirement.format(class_name=required_class_name)
                 if skill.required_skill:
-                    required_skill_name = skill.required_skill.localized_name(self.loc)
-                    requirements_string = requirements_string[:-1]
-                    requirements_string += self.loc.heroic_skill_skill_requirement.format(skill_name=required_skill_name)
+                    requirements_string = self.loc.heroic_skill_mastery_and_skill_requirement.format(
+                        class_name=required_class_name,
+                        skill_name=skill.required_skill.localized_name(self.loc),
+                    )
+                else:
+                    requirements_string = self.loc.heroic_skill_one_mastery_requirement.format(class_name=required_class_name)
             else:
                 required_classes_names = [c.localized_name(self.loc) for c in skill.required_class]
                 requirements_string = self.loc.heroic_skill_several_mastery_requirement.format(
@@ -259,7 +272,7 @@ class HeroicSkillTableWriter(TableWriter):
         if st.checkbox("add skill",
                        value=(skill in st.session_state.selected_hero_skills),
                        label_visibility="hidden",
-                       key=f"{skill.name}-toggle"
+                       key=f"heroic-{skill.name}-toggle"
                        ):
             if skill not in st.session_state.selected_hero_skills:
                 st.session_state.selected_hero_skills.append(skill)
@@ -346,7 +359,7 @@ class SpellTableWriter(TableWriter):
         if st.checkbox("add spell",
                        value=(spell in st.session_state.class_spells),
                        label_visibility="hidden",
-                       key=f"{spell.name}-toggle"
+                       key=f"spell-{spell.name}-toggle"
                        ):
             if spell not in st.session_state.class_spells:
                 st.session_state.class_spells.append(spell)
@@ -401,12 +414,11 @@ class WeaponTableWriter(TableWriter):
         )
 
     def _process_weapon(self, s, idx=None):
-        key = f"item_{s.name}"
-        weapon_name = getattr(self.loc, key, s.name.title())
+        weapon_name = s.localized_name(self.loc)
         st.markdown(f"{weapon_name} {'♦️' if s.martial else ''}")
 
     def _process_cost(self, s, idx=None):
-        currency = getattr(self.loc, "zenit_short", "z")
+        currency = self.loc.zenit_short
         st.markdown(f"{s.cost} {currency}")
 
     def _process_accuracy(self, s, idx=None):
@@ -439,7 +451,7 @@ class WeaponTableWriter(TableWriter):
         ):
             self.inventory.backpack.weapons.append(deepcopy(weapon))
             self.inventory.zenit -= weapon.cost
-        if st.button(self.loc.add_as_button, key=f"{weapon.name}-add-as"):
+        if st.button(self.loc.add_as_button, key=f"{weapon.name}-add-as", disabled=cannot_equip):
             self._add_item_as(weapon)
 
     def equip(self, item: Weapon, idx: int | None = None):
@@ -448,7 +460,7 @@ class WeaponTableWriter(TableWriter):
             upgrade_item(self.controller, item, self.loc)
 
         cannot_equip = not self.controller.can_equip_martial(item)
-        if item in self.controller.equipped_items():
+        if self.controller.is_equipped(item):
             cannot_equip = True
         key_suffix = f"{item.name}-{idx}" if idx is not None else item.name
         if st.button(self.loc.equip_button,
@@ -516,12 +528,11 @@ class ArmorTableWriter(TableWriter):
         )
 
     def _process_armor(self, s, idx=None):
-        key = f"item_{s.name}"
-        armor_name = getattr(self.loc, key, s.name.title())
+        armor_name = s.localized_name(self.loc)
         st.markdown(f"{armor_name} {'♦️' if s.martial else ''}")
 
     def _process_cost(self, s, idx=None):
-        currency = getattr(self.loc, "zenit_short", "z")
+        currency = self.loc.zenit_short
         st.markdown(f"{s.cost} {currency}")
 
     def _add_description(self, item: Armor, idx=None):
@@ -536,7 +547,7 @@ class ArmorTableWriter(TableWriter):
             self.inventory.backpack.armors.append(deepcopy(armor))
             self.inventory.zenit -= armor.cost
 
-        if st.button(self.loc.add_as_button, key=f"{armor.name}-add-as"):
+        if st.button(self.loc.add_as_button, key=f"{armor.name}-add-as", disabled=cannot_equip):
             self._add_item_as(armor)
 
     def _write_defense(self, item: Armor, idx=None):
@@ -558,7 +569,7 @@ class ArmorTableWriter(TableWriter):
         def upgrade_item_dialog(item: Item):
             upgrade_item(self.controller, item, self.loc)
         cannot_equip = not self.controller.can_equip_martial(item)
-        if item in self.controller.equipped_items():
+        if self.controller.is_equipped(item):
             cannot_equip = True
 
         key_suffix = f"{item.name}-{idx}" if idx is not None else item.name
@@ -629,12 +640,11 @@ class ShieldTableWriter(TableWriter):
         )
 
     def _process_shield(self, s, idx=None):
-        key = f"item_{s.name}"
-        shield_name = getattr(self.loc, key, s.name.title())
+        shield_name = s.localized_name(self.loc)
         st.markdown(f"{shield_name} {'♦️' if s.martial else ''}")
 
     def _process_cost(self, s, idx=None):
-        currency = getattr(self.loc, "zenit_short", "z")
+        currency = self.loc.zenit_short
         st.markdown(f"{s.cost} {currency}")
 
     def _add_description(self, item: Shield, idx=None):
@@ -649,7 +659,7 @@ class ShieldTableWriter(TableWriter):
             self.inventory.backpack.shields.append(deepcopy(shield))
             self.inventory.zenit -= shield.cost
 
-        if st.button(self.loc.add_as_button, key=f"{shield.name}-add-as"):
+        if st.button(self.loc.add_as_button, key=f"{shield.name}-add-as", disabled=cannot_equip):
             self._add_item_as(shield)
 
     def _write_defense(self, item: Shield, idx=None):
@@ -663,7 +673,7 @@ class ShieldTableWriter(TableWriter):
         def upgrade_item_dialog(item: Item):
             upgrade_item(self.controller, item, self.loc)
         cannot_equip = not self.controller.can_equip_martial(item)
-        if item in self.controller.equipped_items():
+        if self.controller.is_equipped(item):
             cannot_equip = True
 
         key_suffix = f"{item.name}-{idx}" if idx is not None else item.name
@@ -713,12 +723,11 @@ class AccessoryTableWriter(TableWriter):
         )
 
     def _process_name(self, s, idx=None):
-        key = f"item_{s.name}"
-        item_name = getattr(self.loc, key, s.name.title())
+        item_name = s.localized_name(self.loc)
         st.markdown(item_name)
 
     def _process_cost(self, s, idx=None):
-        currency = getattr(self.loc, "zenit_short", "z")
+        currency = self.loc.zenit_short
         st.markdown(f"{s.cost} {currency}")
 
     def _add_description(self, item: Accessory, idx=None):
@@ -726,7 +735,7 @@ class AccessoryTableWriter(TableWriter):
 
     def equip(self, item: Accessory, idx: int | None = None):
         key_suffix = f"{item.name}-{idx}" if idx is not None else item.name
-        disabled = item in self.controller.equipped_items()
+        disabled = self.controller.is_equipped(item)
         if st.button(self.loc.equip_button, key=f'{key_suffix}-equip', disabled=disabled):
             try:
                 self.controller.equip_item(item)
@@ -743,12 +752,12 @@ class ItemTableWriter(TableWriter):
             ColumnConfig(
                 name="items",
                 width=0.2,
-                process=lambda s, idx=None: st.markdown(s.name.title()),
+                process=lambda s, idx=None: st.markdown(s.localized_name(self.loc)),
             ),
             ColumnConfig(
                 name="cost",
                 width=0.15,
-                process=lambda s, idx=None: st.markdown(f"{s.cost} z"),
+                process=lambda s, idx=None: st.markdown(f"{s.cost} {self.loc.zenit_short}"),
             ),
             ColumnConfig(
                 name="quality",
@@ -817,16 +826,6 @@ class DanceTableWriter(TableWriter):
             ),
         )
 
-    def add_one_dance_columns(self, single_selector: Callable):
-        return (
-            *self.columns,
-            ColumnConfig(
-                name="select",
-                width=0.1,
-                process=single_selector,
-            ),
-        )
-
     def _add_description(self, dance: Dance, idx=None):
         pass
 
@@ -844,16 +843,6 @@ class ArcanumTableWriter(TableWriter):
                 name="domains",
                 width=0.45,
                 process=lambda a, idx=None: st.markdown(a.domains(self.loc)),
-            ),
-        )
-
-    def add_one_dance_columns(self, single_selector: Callable):
-        return (
-            *self.columns,
-            ColumnConfig(
-                name="select",
-                width=0.1,
-                process=single_selector,
             ),
         )
 
@@ -929,7 +918,7 @@ class BondTableWriter(TableWriter):
 
 def add_point(skill: Skill, idx=None):
     st.session_state.selected_hero_skills = st.session_state.get("selected_hero_skills", [])
-    if st.checkbox(" ", key=f"{skill.name}-point", label_visibility="hidden"):
+    if st.checkbox(" ", key=f"skill-{skill.name}-point", label_visibility="hidden"):
         if skill not in st.session_state.selected_hero_skills:
             st.session_state.selected_hero_skills.append(skill)
     else:

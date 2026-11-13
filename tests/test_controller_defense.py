@@ -79,3 +79,30 @@ def test_initiative_with_negative_bonus(controller):
     controller.character.inventory.equipped.main_hand = None
     controller.character.inventory.equipped.accessory = Accessory(name="cursed_ring", bonus_initiative=-3)
     assert controller.initiative() == "d8 + d9 -3"
+
+
+def _rogue_with_dodge(controller, level=3):
+    controller.character.dexterity.current = 8
+    controller.character.classes = [
+        CharClass(name=ClassName.rogue, martial_armor=True,
+                  skills=[Skill(name="dodge", current_level=level, max_level=5)])
+    ]
+
+
+def test_dodge_not_applied_with_shield(controller):
+    from data.models import Shield
+    _rogue_with_dodge(controller)
+    controller.character.inventory.equipped.off_hand = Shield(name="buckler", bonus_defense=2)
+    assert controller.defense() == 8 + 2
+
+
+def test_dodge_not_applied_with_martial_armor(controller):
+    _rogue_with_dodge(controller)
+    controller.character.inventory.equipped.armor = Armor(name="plate", defense=11, martial=True)
+    assert controller.defense() == 11
+
+
+def test_dodge_applied_with_non_martial_armor(controller):
+    _rogue_with_dodge(controller)
+    controller.character.inventory.equipped.armor = Armor(name="robe", defense=AttributeName.dexterity)
+    assert controller.defense() == 8 + 3

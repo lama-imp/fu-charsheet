@@ -4,7 +4,7 @@ import streamlit as st
 
 from config import MAX_ATTRIBUTE_VALUE
 from pages.controller import CharacterController, ClassController
-from data.models import AttributeName, Weapon, GripType, WeaponCategory, \
+from data.models import CharClass, AttributeName, Weapon, GripType, WeaponCategory, \
     WeaponRange, ClassName, SpellTarget, Spell, SpellDuration, DamageType, Armor, Shield, Accessory, Item, \
     Skill, LocNamespace, HeroicSkill, Species, ChimeristSpell, Therioform, HeroicSkillName, Dance, Arcanum, Invention, \
     Status, Companion, CompanionAttack, CompanionSkill, CompanionSkillName, SPECIES_STARTING_SKILLS, \
@@ -12,8 +12,9 @@ from data.models import AttributeName, Weapon, GripType, WeaponCategory, \
 from .table_writer import SkillTableWriter, HeroicSkillTableWriter, SpellTableWriter, TherioformTableWriter, \
     DanceTableWriter, ArcanumTableWriter, InventionTableWriter
 from .classes_page_actions import add_new_class
-from .common import join_with_and
+from .common import join_with_and, resource_bar, HP_BAR_COLOR
 from data import compendium as c
+from data import saved_characters as s
 
 COMPANION_ATTRIBUTE_ARRAYS = {
     "jack_of_all_trades": [8, 8, 8, 8],
@@ -61,8 +62,29 @@ def level_up(controller: CharacterController, loc: LocNamespace):
     if controller.can_add_class():
         add_new_class(controller, class_controller, loc, mode="addition")
 
-    if st.session_state.selected_hero_skills:
-        selected_skill: Skill = st.session_state.selected_hero_skills[0]
+    selected_skill: Skill | None = None
+    selected_class_name: ClassName | None = None
+    new_class: CharClass | None = None
+    can_confirm = len(st.session_state.selected_hero_skills) == 1
+
+    with st.container(border=True):
+        if st.session_state.selected_hero_skills:
+            st.write(loc.msg_skills_selected)
+            for skill in st.session_state.selected_hero_skills:
+                skill_class = c.COMPENDIUM.get_class_name_from_skill(skill)
+                class_label = f" ({skill_class.localized_name(loc)})" if skill_class else ""
+                st.markdown(f"- **{skill.localized_name(loc)}**{class_label}")
+        if not can_confirm:
+            st.info(loc.msg_levelup_pick_one_skill)
+
+    if can_confirm:
+        selected_skill = st.session_state.selected_hero_skills[0]
+        selected_class_name = c.COMPENDIUM.get_class_name_from_skill(selected_skill)
+        if not controller.is_class_added(selected_class_name):
+            new_class = class_controller.char_class
+            # A class with a choice of bonus (e.g. Dancer) needs one picked first.
+            if new_class is None or new_class.class_bonus is None or isinstance(new_class.class_bonus, list):
+                can_confirm = False
 
         if selected_skill.can_add_spell:
             class_name = c.COMPENDIUM.get_class_name_from_skill(selected_skill)
@@ -77,21 +99,28 @@ def level_up(controller: CharacterController, loc: LocNamespace):
             total_class_spells = len(st.session_state.class_spells)
 
             if total_class_spells != max_n_spells:
+                can_confirm = False
                 st.error(loc.error_class_select_exact_spells.format(
                     max_n_spells=max_n_spells,
                     casting_skill=selected_skill.localized_name(loc)
                 ))
 
-    if st.button(loc.confirm_button, disabled=(len(st.session_state.selected_hero_skills) != 1)):
-        selected_class_name = c.COMPENDIUM.get_class_name_from_skill(selected_skill)
-        new_class = class_controller.char_class if not controller.is_class_added(selected_class_name) else None
-        controller.apply_levelup(
-            skill=selected_skill,
-            class_name=selected_class_name,
-            new_class=new_class,
-            spells=list(st.session_state.class_spells),
-        )
-        st.rerun()
+    if not controller.can_level_up():
+        can_confirm = False
+        st.error(loc.error_invalid_level.format(level=controller.character.level + 1))
+
+    if st.button(loc.confirm_button, disabled=not can_confirm):
+        try:
+            controller.apply_levelup(
+                skill=selected_skill,
+                class_name=selected_class_name,
+                new_class=new_class,
+                spells=list(st.session_state.class_spells),
+            )
+        except ValueError as e:
+            st.error(str(e))
+        else:
+            st.rerun()
 
 
 def add_spell(controller: CharacterController, class_name: ClassName, loc: LocNamespace):
@@ -101,7 +130,7 @@ def add_spell(controller: CharacterController, class_name: ClassName, loc: LocNa
         if st.checkbox("add spell",
                        value=(spell in selected_spells),
                        label_visibility="hidden",
-                       key=f"{spell.name}-toggle"
+                       key=f"spell-{spell.name}-toggle"
                        ):
             if spell not in selected_spells:
                 selected_spells.append(spell)
@@ -150,12 +179,12 @@ def add_chimerist_spell(controller: CharacterController, loc: LocNamespace):
 
 def remove_chimerist_spell(controller: CharacterController, loc: LocNamespace):
     chimerist_spells = controller.character.spells[ClassName.chimerist]
-    for spell in chimerist_spells:
+    for i, spell in enumerate(chimerist_spells):
         c1, c2 = st.columns([0.8, 0.2])
         with c1:
             st.write(spell.localized_name(loc))
         with c2:
-            if st.button(loc.remove_button, key=f"{spell.name}-remove"):
+            if st.button(loc.remove_button, key=f"chimerist-spell-{i}-remove"):
                 controller.remove_spell(spell, ClassName.chimerist)
                 st.rerun()
 
@@ -171,9 +200,9 @@ def add_item(controller: CharacterController, loc: LocNamespace):
     if item_type:
         name = st.text_input(loc.page_view_item_name)
         item_dict = {
-            "name": name.lower() if name else name,
+            "name": name.strip() if name else name,
             "cost": st.number_input(loc.page_view_item_cost, value=0, step=50),
-            "quality": st.text_input(loc.page_view_item_quality, value=loc.item_no_quality),
+            "quality": st.text_input(loc.page_view_item_quality, placeholder=loc.item_no_quality).strip() or "no_quality",
          }
         input_dict = {}
         if item_type.__name__ == "Weapon":
@@ -246,7 +275,7 @@ def add_item(controller: CharacterController, loc: LocNamespace):
                 **combined_dict
             )
             controller.add_item(new_item)
-            st.toast(loc.page_view_added_item_to_equipment.format(name=combined_dict['name']))
+            st.toast(loc.page_view_added_item_to_equipment.format(name=new_item.localized_name(loc)))
             st.rerun()
         except Exception as e:
             st.error(e)
@@ -258,7 +287,7 @@ def remove_item(controller: CharacterController, loc: LocNamespace):
     for i, item in enumerate(all_items):
         c1, c2 = st.columns([0.8, 0.2])
         with c1:
-            st.write(f"{item.__class__.__name__} - {item.name.title()}")
+            st.write(f"{loc[f'item_{type(item).__name__.lower()}']} - {item.localized_name(loc)}")
         with c2:
             if st.button(loc.remove_button, key=f"{item.name}-{i}-remove"):
                 controller.remove_item(item)
@@ -293,7 +322,7 @@ def add_heroic_skill(controller: CharacterController, loc: LocNamespace):
                 if st.checkbox("add spell",
                                value=(spell in selected_spells),
                                label_visibility="hidden",
-                               key=f"{spell.name}-toggle"
+                               key=f"spell-{spell.name}-toggle"
                                ):
                     if spell not in selected_spells:
                         selected_spells.append(spell)
@@ -393,7 +422,7 @@ def add_therioform(controller: CharacterController, loc: LocNamespace):
         if st.checkbox("add therioform",
                        value=(therioform in selected_therioform),
                        label_visibility="hidden",
-                       key=f"{therioform.name}-toggle"
+                       key=f"therioform-{therioform.name}-toggle"
                        ):
             if therioform not in selected_therioform:
                 selected_therioform.append(therioform)
@@ -420,7 +449,7 @@ def add_dance(controller: CharacterController, loc: LocNamespace):
         if st.checkbox("add dance",
                        value=(dance in selected_dance),
                        label_visibility="hidden",
-                       key=f"{dance.name}-toggle"
+                       key=f"dance-{dance.name}-toggle"
                        ):
             if dance not in selected_dance:
                 selected_dance.append(dance)
@@ -432,10 +461,10 @@ def add_dance(controller: CharacterController, loc: LocNamespace):
     available_dances = [t for t in sorted_dances if t not in controller.character.special.dances]
 
     writer = DanceTableWriter(loc)
-    writer.columns = writer.add_one_dance_columns(single_selector)
+    writer.columns = writer.with_select_column(single_selector)
     writer.write_in_columns(available_dances, description=False)
 
-    if st.button(loc.add_spell_button, disabled=(len(selected_dance) != 1)):
+    if st.button(loc.add_dance_button, key="add-new-dance", disabled=(len(selected_dance) != 1)):
         dance = selected_dance[0]
         controller.character.special.dances.append(dance)
         st.rerun()
@@ -446,7 +475,7 @@ def add_invention(controller: CharacterController, loc: LocNamespace):
         if st.checkbox("add invention",
                        value=(invention in selected_invention),
                        label_visibility="hidden",
-                       key=f"{invention.name}-toggle"
+                       key=f"invention-{invention.name}-toggle"
                        ):
             if invention not in selected_invention:
                 selected_invention.append(invention)
@@ -455,7 +484,7 @@ def add_invention(controller: CharacterController, loc: LocNamespace):
                 selected_invention.remove(invention)
 
     sorted_inventions = sorted(c.COMPENDIUM.inventions, key=lambda x: x.localized_name(loc))
-    available_inventions = [i for i in sorted_inventions if i not in controller.character.special.inventions]
+    available_inventions = [i for i in sorted_inventions if controller.is_invention_available(i)]
 
     writer = InventionTableWriter(loc)
     writer.columns = writer.add_one_invention_columns(single_selector)
@@ -474,7 +503,7 @@ def manifest_therioform(controller: CharacterController, loc: LocNamespace):
         if st.checkbox("add therioform",
                        value=(therioform in selected_therioforms),
                        label_visibility="hidden",
-                       key=f"{therioform.name}-toggle"
+                       key=f"therioform-{therioform.name}-toggle"
                        ):
             if therioform not in selected_therioforms:
                 selected_therioforms.append(therioform)
@@ -616,7 +645,7 @@ def add_arcanum(controller: CharacterController, loc: LocNamespace):
         if st.checkbox("add arcanum",
                        value=(arcanum in selected_arcanum),
                        label_visibility="hidden",
-                       key=f"{arcanum.name}-toggle"
+                       key=f"arcanum-{arcanum.name}-toggle"
                        ):
             if arcanum not in selected_arcanum:
                 selected_arcanum.append(arcanum)
@@ -628,7 +657,7 @@ def add_arcanum(controller: CharacterController, loc: LocNamespace):
     available_arcana = [t for t in sorted_arcana if t not in controller.character.special.arcana]
 
     writer = ArcanumTableWriter(loc)
-    writer.columns = writer.add_one_dance_columns(single_selector)
+    writer.columns = writer.with_select_column(single_selector)
     writer.write_in_columns(available_arcana)
 
     if st.button(loc.add_arcanum_button,
@@ -948,27 +977,21 @@ def display_companion(controller: CharacterController, loc: LocNamespace):
     with hp_col:
         max_hp = controller.companion_max_hp()
         current_hp = controller.companion_current_hp()
-        st.progress(
-            max(current_hp / max_hp, 0) if max_hp else 0,
-            text=f"{loc.companion_hp} {current_hp} / {max_hp}"
-        )
-        hc1, hc2, hc3, hc4 = st.columns([0.4, 0.2, 0.2, 0.2])
+        st.markdown(resource_bar(loc.companion_hp, current_hp, max_hp, HP_BAR_COLOR), unsafe_allow_html=True)
+        hc1, hc2, hc3, hc4 = st.columns([0.4, 0.2, 0.2, 0.2], vertical_alignment="center")
         with hc1:
-            hp_input = st.number_input("companion_hp_input", min_value=0, label_visibility="hidden", value=10,
+            hp_input = st.number_input("companion_hp_input", min_value=0, label_visibility="collapsed", value=10,
                                        key="companion-hp-input")
         with hc2:
-            st.write("")
             if st.button("", icon=":material/add:", key="companion-hp-add"):
                 controller.state.companion_minus_hp = max(0, controller.state.companion_minus_hp - hp_input)
                 st.rerun()
         with hc3:
-            st.write("")
             if st.button("", icon=":material/remove:", key="companion-hp-subtract"):
                 controller.state.companion_minus_hp = min(max_hp, controller.state.companion_minus_hp + hp_input)
                 st.rerun()
         with hc4:
-            st.write("")
-            if st.button("", icon=":material/laps:", key="companion-hp-reset", help="Reset HP"):
+            if st.button("", icon=":material/laps:", key="companion-hp-reset", help=loc.reset_resource_tooltip.format(label=loc.hp)):
                 controller.state.companion_minus_hp = 0
                 st.rerun()
 
@@ -1039,3 +1062,31 @@ def display_companion(controller: CharacterController, loc: LocNamespace):
         if status_immunities:
             st.markdown(f"**{loc.companion_status_immunities}**: {join_with_and([s.localized_name(loc) for s in status_immunities], loc)}")
 
+
+
+def save_current_character(controller: CharacterController, loc: LocNamespace) -> bool:
+    """Save the character and its battle state, telling the user how it went."""
+    try:
+        controller.save()
+    except Exception as e:
+        st.error(loc.page_save_character_error.format(error=e), icon="📜")
+        return False
+    s.SAVED_CHARS.upsert(controller.character)
+    st.toast(loc.page_save_current_character_toast.format(name=controller.character.name), icon="💾")
+    return True
+
+
+def confirm_leaving_unsaved(controller: CharacterController, loc: LocNamespace, on_leave) -> None:
+    """Body of the "unsaved changes" dialog: save, discard, or stay."""
+    st.warning(loc.page_unsaved_changes_warning.format(name=controller.character.name), icon="❓")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button(loc.page_unsaved_changes_save_button, type="primary"):
+            if save_current_character(controller, loc):
+                on_leave()
+    with c2:
+        if st.button(loc.page_unsaved_changes_discard_button):
+            on_leave()
+    with c3:
+        if st.button(loc.page_unsaved_changes_cancel_button):
+            st.rerun()

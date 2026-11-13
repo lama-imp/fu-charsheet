@@ -16,6 +16,9 @@ class Localizator:
         translations = self.__translations.get(lang) or self.__translations.get(self.default_language, {})
         return LocNamespace(root=translations)
 
+    def all(self) -> list[LocNamespace]:
+        return [LocNamespace(root=t) for t in self.__translations.values()]
+
 
 def load_translations(locals_directory: Path) -> dict[LangEnum, dict[str, str]]:
     """Load and merge all locale YAML files into a {language: {key: value}} mapping.
@@ -26,7 +29,7 @@ def load_translations(locals_directory: Path) -> dict[LangEnum, dict[str, str]]:
         merged_translations = {}
         key_origins = {}
         for yaml_file in sorted(lang_dir.rglob("*.yaml")):
-            with yaml_file.open(encoding="utf8") as f:
+            with yaml_file.open(encoding="utf-8") as f:
                 data = yaml.load(f, Loader=yaml.SafeLoader) or {}
                 if not isinstance(data, dict):
                     raise ValueError(f"Invalid YAML structure in {yaml_file}")
@@ -78,19 +81,14 @@ def init_localizator(locals_directory: Path):
 
 
 def select_local():
+    if "language" not in st.session_state:
+        st.session_state.language = LangEnum.en
+
     with st.sidebar:
-        if "language" not in st.session_state:
-            st.session_state.language = LangEnum.en
-
-        with st.sidebar:
-            st.selectbox(
-                "Select Language",
-                options=list(LangEnum),
-                format_func=lambda lang: lang.value.upper(),
-                index=list(LangEnum).index(st.session_state.language),
-                label_visibility="hidden",
-                key="language",
-            )
-
-        if "char_controller" in st.session_state:
-            st.session_state.char_controller.loc = st.session_state.localizator.get(st.session_state.language)
+        st.selectbox(
+            "Select Language",
+            options=list(LangEnum),
+            format_func=lambda lang: lang.value.upper(),
+            label_visibility="hidden",
+            key="language",
+        )

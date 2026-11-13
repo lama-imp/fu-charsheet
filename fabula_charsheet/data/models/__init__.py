@@ -18,6 +18,7 @@ from .character import (
     Character,
     CharSpecial,
     CharacterTheme,
+    MAX_LEVEL,
 )
 from .damage import DamageType
 from .inventory import (

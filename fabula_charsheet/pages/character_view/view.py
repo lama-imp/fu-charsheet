@@ -9,13 +9,17 @@ from pages.utils import WeaponTableWriter, ArmorTableWriter, SkillTableWriter, S
     show_martial, set_view_state, get_avatar_path, avatar_update, level_up, add_chimerist_spell, \
     remove_chimerist_spell, add_item, remove_item, unequip_item, add_heroic_skill, add_spell, add_bond, remove_bond, \
     increase_attribute, add_therioform, add_dance, add_arcanum, manifest_therioform, display_equipped_item, add_invention, \
-    colored_attr, add_companion, display_companion
+    colored_attr, resource_bar, HP_BAR_COLOR, MP_BAR_COLOR, IP_BAR_COLOR, add_companion, display_companion, save_current_character, confirm_leaving_unsaved, localized_theme
 from pages.character_view.view_state import ViewState
 
 
 def build(controller: CharacterController):
     st.set_page_config(layout="wide")
     loc: LocNamespace = st.session_state.localizator.get(st.session_state.language)
+
+    @st.dialog(loc.page_unsaved_changes_title)
+    def unsaved_changes_dialog(controller: CharacterController, loc: LocNamespace):
+        confirm_leaving_unsaved(controller, loc, on_leave=lambda: set_view_state(ViewState.load))
 
     @st.dialog(loc.page_view_avatar_update_dialog_title)
     def avatar_update_dialog(controller: CharacterController, loc: LocNamespace):
@@ -89,6 +93,36 @@ def build(controller: CharacterController):
     def add_companion_dialog(controller: CharacterController, loc: LocNamespace):
         add_companion(controller, loc)
 
+    # Callbacks run before the script body, so the state is already up to
+    # date when anything below is drawn.
+    def _toggle_status(stat: Status, key: str):
+        if st.session_state[key]:
+            controller.add_status(stat)
+        else:
+            controller.remove_status(stat)
+
+    def _toggle_improved_attribute(attribute: AttributeName, key: str):
+        improved = controller.state.improved_attributes
+        if st.session_state[key] and attribute not in improved:
+            improved.append(attribute)
+        elif not st.session_state[key] and attribute in improved:
+            improved.remove(attribute)
+
+    def _restore_points(res: str, amount_key: str):
+        attr = f"minus_{res}"
+        setattr(controller.state, attr, max(0, getattr(controller.state, attr) - st.session_state[amount_key]))
+
+    def _spend_points(res: str, amount_key: str, maximum):
+        attr = f"minus_{res}"
+        setattr(controller.state, attr, min(maximum(), getattr(controller.state, attr) + st.session_state[amount_key]))
+
+    def _reset_points(res: str):
+        setattr(controller.state, f"minus_{res}", 0)
+
+    # Apply statuses before drawing anything, so every panel (including the
+    # equipped items' accuracy and defense) shows current attribute values.
+    controller.apply_status()
+
     st.title(f"{controller.character.name}")
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -118,13 +152,18 @@ def build(controller: CharacterController):
                     origin=controller.character.origin
                 ))
                 st.markdown(f"**{loc.page_view_level}:** {controller.character.level}")
-                st.markdown(f"**{loc.page_view_theme}:** {controller.character.theme}")
-                st.number_input(loc.page_view_fabula_points, min_value=0)
+                st.markdown(f"**{loc.page_view_theme}:** {localized_theme(controller.character.theme, loc)}")
+                controller.state.fabula_points = st.number_input(
+                    loc.page_view_fabula_points,
+                    min_value=0,
+                    value=controller.state.fabula_points,
+                    key=f"fabula-points-{controller.character.id}",
+                )
                 if controller.current_hp() <= controller.crisis_value():
                     st.write(f":red[{loc.page_view_crisis_text}]")
                 else:
                     st.write("")
-                if st.button(loc.page_view_level_up_button):
+                if st.button(loc.page_view_level_up_button, disabled=not controller.can_level_up()):
                     level_up_dialog(controller, loc)
                 if controller.can_add_heroic_skill():
                     if st.button(loc.heroic_skill_button):
@@ -157,90 +196,32 @@ def build(controller: CharacterController):
 
 
         with points_col:
-            col1, col2, col3, col4, col5 = st.columns([0.5, 0.2, 0.1, 0.1, 0.1])
-            with col1:
-                st.markdown(
-                    """
-                    <style>
-                        .stProgress > div > div > div > div {
-                            background-color: green;
-                        }
-                    </style>""",
-                    unsafe_allow_html=True,
+            # One self-contained row per resource, so bar, amount and buttons
+            # stay together and aligned at any width (no spacer elements).
+            resources = (
+                ("hp", loc.hp, controller.current_hp, controller.max_hp, HP_BAR_COLOR, 10),
+                ("mp", loc.mp, controller.current_mp, controller.max_mp, MP_BAR_COLOR, 10),
+                ("ip", loc.ip, controller.current_ip, controller.max_ip, IP_BAR_COLOR, 3),
+            )
+            for res, label, current, maximum, color, default_amount in resources:
+                amount_key = f"{res}-input-{controller.character.id}"
+                bar_col, input_col, add_col, sub_col, reset_col = st.columns(
+                    [0.46, 0.24, 0.1, 0.1, 0.1], vertical_alignment="center"
                 )
-                st.progress(
-                    max((controller.current_hp() / controller.max_hp()), 0),
-                    text=f"{loc.hp} {controller.current_hp()} / {controller.max_hp()}"
-                )
-                st.write("")
-                st.write("")
-
-                st.progress(
-                    max((controller.current_mp() / controller.max_mp()), 0),
-                    text=f"{loc.mp} {controller.current_mp()} / {controller.max_mp()}"
-                )
-                st.write("")
-                st.write("")
-
-                st.progress(
-                    max((controller.current_ip() / controller.max_ip()), 0),
-                    text=f"{loc.ip} {controller.current_ip()} / {controller.max_ip()}"
-                )
-            with col2:
-                hp_input = st.number_input("hp_input", min_value=0, label_visibility="hidden", value=10)
-                mp_input = st.number_input("mp_input", min_value=0, label_visibility="hidden", value=10)
-                ip_input = st.number_input("ip_input", min_value=0, label_visibility="hidden", value=3)
-            with col3:
-                st.write("")
-                if st.button("", icon=":material/add:", key="add_hp"):
-                    controller.state.minus_hp = max(0, controller.state.minus_hp - hp_input)
-                    st.rerun()
-                st.write("")
-                st.write("")
-                if st.button("", icon=":material/add:", key="add_mp"):
-                    controller.state.minus_mp = max(0, controller.state.minus_mp - mp_input)
-                    st.rerun()
-                st.write("")
-                st.write("")
-                if st.button("", icon=":material/add:", key="add_ip"):
-                    controller.state.minus_ip = max(0, controller.state.minus_ip - ip_input)
-                    st.rerun()
-                st.write("")
-                st.write("")
-            with col4:
-                st.write("")
-                if st.button("", icon=":material/remove:", key="subtract_hp"):
-                    controller.state.minus_hp = min(controller.max_hp(), controller.state.minus_hp + hp_input)
-                    st.rerun()
-                st.write("")
-                st.write("")
-                if st.button("", icon=":material/remove:", key="subtract_mp"):
-                    controller.state.minus_mp = min(controller.max_mp(), controller.state.minus_mp + mp_input)
-                    st.rerun()
-                st.write("")
-                st.write("")
-                if st.button("", icon=":material/remove:", key="subtract_ip"):
-                    controller.state.minus_ip = min(controller.max_ip(), controller.state.minus_ip + ip_input)
-                    st.rerun()
-                st.write("")
-                st.write("")
-            with col5:
-                st.write("")
-                if st.button("", icon=":material/laps:", key="reset_hp", help="Reset HP"):
-                    controller.state.minus_hp = 0
-                    st.rerun()
-                st.write("")
-                st.write("")
-                if st.button("", icon=":material/laps:", key="reset_mp", help="Reset MP"):
-                    controller.state.minus_mp = 0
-                    st.rerun()
-                st.write("")
-                st.write("")
-                if st.button("", icon=":material/laps:", key="reset_ip", help="Reset IP"):
-                    controller.state.minus_ip = 0
-                    st.rerun()
-                st.write("")
-                st.write("")
+                with bar_col:
+                    st.markdown(resource_bar(label, current(), maximum(), color), unsafe_allow_html=True)
+                with input_col:
+                    st.number_input(f"{res}_input", min_value=0, value=default_amount,
+                                    key=amount_key, label_visibility="collapsed")
+                with add_col:
+                    st.button("", icon=":material/add:", key=f"add_{res}",
+                              on_click=_restore_points, args=(res, amount_key))
+                with sub_col:
+                    st.button("", icon=":material/remove:", key=f"subtract_{res}",
+                              on_click=_spend_points, args=(res, amount_key, maximum))
+                with reset_col:
+                    st.button("", icon=":material/laps:", key=f"reset_{res}", help=loc.reset_resource_tooltip.format(label=label),
+                              on_click=_reset_points, args=(res,))
 
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -306,42 +287,32 @@ def build(controller: CharacterController):
             for idx, stat in enumerate(Status):
                 col = col1 if idx < 3 else col2
                 with col:
-                    checked = st.checkbox(stat.localized_name(loc),
-                                          value=(stat in controller.state.statuses))
-                    if checked:
-                        controller.add_status(stat)
-                    else:
-                        controller.remove_status(stat)
+                    key = f"status-{controller.character.id}-{stat}"
+                    st.session_state[key] = stat in controller.state.statuses
+                    st.checkbox(stat.localized_name(loc), key=key, on_change=_toggle_status, args=(stat, key))
 
             st.markdown(f"##### {loc.page_view_bonus_to_attributes}")
             col1, col2 = st.columns(2)
             for idx, attribute in enumerate(AttributeName):
                 col = col1 if idx < 2 else col2
                 with col:
-                    checked = st.checkbox(attribute.localized_name(loc),
-                                          value=(attribute in controller.state.improved_attributes))
-                    if checked and attribute not in controller.state.improved_attributes:
-                        controller.state.improved_attributes.append(attribute)
-                    if not checked and attribute in controller.state.improved_attributes:
-                        controller.state.improved_attributes.remove(attribute)
-
-            controller.apply_status()
-
-            if st.button(loc.page_view_refresh_attributes):
-                st.rerun()
+                    key = f"improved-{controller.character.id}-{attribute}"
+                    st.session_state[key] = attribute in controller.state.improved_attributes
+                    st.checkbox(attribute.localized_name(loc), key=key,
+                                on_change=_toggle_improved_attribute, args=(attribute, key))
 
             with att_col1:
                 st.markdown(colored_attr(loc.attr_dexterity, loc.dice_prefix, controller.character.dexterity.current,
-                                         controller.character.dexterity.base), unsafe_allow_html=True)
+                                         controller.character.dexterity.base))
                 st.markdown(colored_attr(loc.attr_might, loc.dice_prefix, controller.character.might.current,
-                                         controller.character.might.base), unsafe_allow_html=True)
+                                         controller.character.might.base))
                 st.markdown(f"**{loc.column_defense}**: {controller.defense()}")
 
             with att_col2:
                 st.markdown(colored_attr(loc.attr_insight, loc.dice_prefix, controller.character.insight.current,
-                                         controller.character.insight.base), unsafe_allow_html=True)
+                                         controller.character.insight.base))
                 st.markdown(colored_attr(loc.attr_willpower, loc.dice_prefix, controller.character.willpower.current,
-                                         controller.character.willpower.base), unsafe_allow_html=True)
+                                         controller.character.willpower.base))
                 st.markdown(f"**{loc.column_magic_defense}**: {controller.magic_defense()}")
 
             with initiative_column:
@@ -445,8 +416,9 @@ def build(controller: CharacterController):
                     st.rerun()
             with c3:
                 st.write("")
-                if st.button("", icon=":material/remove:", key="subtract_zenit"):
-                    controller.character.inventory.zenit -= zenit_input
+                if st.button("", icon=":material/remove:", key="subtract_zenit",
+                             disabled=not controller.can_afford(zenit_input)):
+                    controller.spend_zenit(zenit_input)
                     st.rerun()
 
         backpack = controller.character.inventory.backpack
@@ -513,7 +485,7 @@ def build(controller: CharacterController):
             with col1:
                 st.markdown(f"##### {loc.page_view_inventions}")
             with col2:
-                if len(added_inventions) < controller.get_skill_level(ClassName.tinkerer, "gadgets"):
+                if controller.can_add_invention():
                     if st.button(loc.add_invention_button):
                         add_invention_dialog(controller, loc)
             InventionTableWriter(loc).write_in_columns(added_inventions)
@@ -533,8 +505,10 @@ def build(controller: CharacterController):
     col1, col2 = st.columns([0.2, 0.8])
     with col1:
         if st.button(loc.save_current_character_button):
-            controller.dump_character()
-            controller.dump_state()
+            save_current_character(controller, loc)
     with col2:
         if st.button(loc.load_another_character_button):
-            set_view_state(ViewState.load)
+            if controller.has_unsaved_changes():
+                unsaved_changes_dialog(controller, loc)
+            else:
+                set_view_state(ViewState.load)

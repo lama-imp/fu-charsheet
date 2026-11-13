@@ -15,3 +15,7 @@ msg_positive_status_change: "Ваш атрибут **{attribute}** увелич�
 msg_upload_avatar: "Загрузить ваш аватар"
 msg_add_heroic_skill: "Выберите Геройское Умение из списка ниже."
 msg_increase_attribute: "Выберите один из ваших Атрибутов, чтобы увеличить его базовый размер кубика на один шаг, до максимума d12."
+msg_levelup_pick_one_skill: "Выберите ровно одно умение для повышения уровня."
+page_start_over_dialog_title: "Начать заново"
+msg_skill_with_level: "{name} - уровень {level}"
+reset_resource_tooltip: "Восстановить {label} до максимума"

@@ -2,9 +2,10 @@ import streamlit as st
 
 import config
 from pages.utils import show_martial, add_new_class, avatar_uploader, edit_identity, edit_attributes, edit_class, \
-    unequip_item, equip_item, add_bond, remove_bond, BondTableWriter
+    unequip_item, equip_item, add_bond, remove_bond, BondTableWriter, reset_character_creation, wizard_nav, localized_theme
 from pages.controller import CharacterController, ClassController
-from data.models import CharClass, LocNamespace
+from pages.character_creation.creation_state import CreationState
+from data.models import CharClass, Inventory, LocNamespace
 from data import saved_characters as s
 
 
@@ -48,15 +49,39 @@ def build(controller: CharacterController):
     def remove_bond_dialog(controller: CharacterController, loc: LocNamespace):
         remove_bond(controller, loc)
 
+    @st.dialog(loc.page_class_remove_dialog_title)
+    def remove_class_confirm_dialog(controller: CharacterController, char_class: CharClass, loc: LocNamespace):
+        class_name = char_class.name.localized_name(loc)
+        st.warning(loc.warn_confirm_remove_class.format(class_name=class_name), icon="❓")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button(loc.no_button, key="remove-class-no"):
+                st.rerun()
+        with c2:
+            if st.button(loc.remove_class_confirm_button.format(class_name=class_name), key="remove-class-yes"):
+                controller.remove_class(char_class.name)
+                st.rerun()
+
+    def back_to_equipment():
+        # Put the starting equipment back the way the equipment step left it.
+        snapshot = st.session_state.get("equipment_snapshot")
+        if snapshot is not None:
+            start_equipment, additional_zenit = snapshot
+            st.session_state.start_equipment = start_equipment.model_copy(deep=True)
+            st.session_state.additional_zenit = additional_zenit
+        else:
+            st.session_state.pop("start_equipment", None)
+            st.session_state.pop("additional_zenit", None)
+        controller.character.inventory = Inventory()
+
     st.set_page_config(layout="wide")
     st.title(loc.page_character_preview_title)
+    wizard_nav(loc, back_to=CreationState.equipment, on_back=back_to_equipment, show_next=False)
 
     if "avatar" not in st.session_state.keys():
         st.session_state.avatar = None
 
     message_col, img_col, _ = st.columns(3, gap="medium")
-    if st.session_state.avatar is not None:
-        controller.dump_avatar(st.session_state.avatar)
     with message_col:
         st.markdown(
             loc.page_character_preview_message.format(
@@ -64,10 +89,14 @@ def build(controller: CharacterController):
             )
         )
         if st.button(loc.save_character_button, disabled= not controller.has_enough_skills()):
-            controller.dump_character()
-            controller.dump_avatar(st.session_state.avatar)
-            s.SAVED_CHARS.char_list.append(controller.character)
-            st.toast(loc.page_save_character_toast, icon="🧙")
+            try:
+                controller.dump_character()
+                controller.dump_avatar(st.session_state.avatar)
+            except Exception as e:
+                st.error(loc.page_save_character_error.format(error=e), icon="📜")
+            else:
+                s.SAVED_CHARS.upsert(controller.character)
+                reset_character_creation(loc.page_save_character_toast)
         if not controller.has_enough_skills():
             st.warning(
                 loc.page_character_preview_skill_points_warning.format(level=controller.character.level)
@@ -93,7 +122,7 @@ def build(controller: CharacterController):
             if st.button(loc.edit_button):
                 edit_identity_dialog(controller, loc)
         st.write(loc.page_view_identity_origin.format(identity=controller.character.identity, origin=controller.character.origin))
-        st.markdown(f"**{loc.page_view_theme}**: {controller.character.theme}")
+        st.markdown(f"**{loc.page_view_theme}**: {localized_theme(controller.character.theme, loc)}")
         st.markdown(f"**{loc.page_view_level}**: {controller.character.level}")
 
         a_col1, a_col2 = st.columns(2)
@@ -130,7 +159,12 @@ def build(controller: CharacterController):
     with col2:
         st.markdown(f"#### {loc.page_view_classes}")
         if not controller.has_enough_skills():
-            pass
+            st.warning(
+                loc.page_character_preview_skill_points_status.format(
+                    spent=controller.character.get_n_skill(),
+                    level=controller.character.level,
+                )
+            )
         sorted_classes = sorted(controller.character.classes, key=lambda x: x.class_level(), reverse=True)
         for char_class in sorted_classes:
             c_col1, c_col2, c_col3 = st.columns(3)
@@ -141,12 +175,11 @@ def build(controller: CharacterController):
                     edit_class_dialog(controller, char_class, loc)
             with c_col3:
                 if st.button(loc.remove_button, key=f"{char_class.name}-remove"):
-                    controller.character.classes.remove(char_class)
-                    st.rerun()
+                    remove_class_confirm_dialog(controller, char_class, loc)
             st.write(f"**{loc.page_view_skills}:**")
             added_skills = [skill for skill in char_class.skills if skill.current_level > 0]
             for skill in added_skills:
-                st.write(f"{skill.localized_name(loc)} - level {skill.current_level}")
+                st.write(loc.msg_skill_with_level.format(name=skill.localized_name(loc), level=skill.current_level))
             if controller.character.spells.get(char_class.name, None):
                 st.write(f"**{loc.page_view_spells}:**")
                 st.write(", ".join(spell.localized_name(loc) for spell in controller.character.spells[char_class.name]))
@@ -210,6 +243,10 @@ def build(controller: CharacterController):
                     st.write(display_str)
                 with item_button_col:
                     if st.button(loc.equip_button,
-                                 key=f'{item.name}-{i}-equip'):
+                                 key=f'{item.name}-{i}-equip',
+                                 disabled=(
+                                     not controller.can_equip_martial(item)
+                                     or controller.is_equipped(item)
+                                 )):
                         equip_item(controller, item)
                         st.rerun()

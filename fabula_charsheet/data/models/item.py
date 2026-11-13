@@ -25,7 +25,8 @@ class Item(BaseModel):
         try:
             return getattr(loc, key)
         except AttributeError:
-            return self.name.capitalize()
+            # custom item: keep the user's casing, only capitalize the first letter
+            return self.name[:1].upper() + self.name[1:]
 
     def localized_quality(self, loc: LocNamespace) -> str:
         if self.quality == "no_quality":
@@ -35,8 +36,12 @@ class Item(BaseModel):
         else:
             try:
                 loc_quality =  getattr(loc, f"quality_{self.quality}_short")
-                if self.quality_detail:
-                    return loc_quality.format(*[q.localized_name(loc) for q in self.quality_detail])
-                return loc_quality
             except AttributeError:
                 return self.quality
+            if self.quality_detail:
+                try:
+                    return loc_quality.format(*[q.localized_name(loc) for q in self.quality_detail])
+                except (IndexError, KeyError, ValueError):
+                    # quality_detail doesn't match the placeholders in the translation
+                    pass
+            return loc_quality

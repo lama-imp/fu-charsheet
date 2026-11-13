@@ -3,8 +3,6 @@ import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import yaml
-
 from config import (
     SAVED_CHARS_DIRECTORY,
     SAVED_CHARS_IMG_DIRECTORY,
@@ -13,6 +11,7 @@ from config import (
     MAX_ATTRIBUTE_VALUE,
 )
 from data import compendium as c
+from data.persistence import atomic_write, dump_yaml, load_yaml, safe_filename
 from data.models import (
     Character,
     CharClass,
@@ -38,6 +37,7 @@ from data.models import (
     Companion,
     CompanionSkillName,
     SPECIES_STARTING_SKILLS,
+    MAX_LEVEL,
 )
 
 if TYPE_CHECKING:
@@ -47,11 +47,22 @@ if TYPE_CHECKING:
 from config import ATTRIBUTE_SUM_AT_LEVEL_20, ATTRIBUTE_SUM_AT_LEVEL_40
 
 
+class StateLoadError(Exception):
+    """The saved battle state exists but could not be read."""
+
+    def __init__(self, path: Path, cause: Exception):
+        super().__init__(f"{path.name}: {cause}")
+        self.path = path
+        self.cause = cause
+
+
 class CharacterController:
     def __init__(self, loc: LocNamespace):
         self.character = Character()
         self.loc = loc
         self.state = CharState()
+        # What was last loaded from / written to disk, to detect unsaved edits.
+        self._saved_snapshot: dict | None = None
 
     def get_character(self):
         return self.character
@@ -65,6 +76,14 @@ class CharacterController:
 
     def add_class(self, new_class: CharClass):
         self.character.classes.append(new_class)
+        self._ensure_spell_lists()
+
+    def _ensure_spell_lists(self):
+        """Give every class a (possibly empty) spell list. The Spells tab only
+        shows classes listed in `character.spells`, so without an entry a
+        Chimerist with Spell Mimic never gets the "learn spell" controls."""
+        for char_class in self.character.classes:
+            self.character.spells.setdefault(char_class.name, [])
 
     def update_class(self, updated_class: CharClass):
         for i, existing in enumerate(self.character.classes):
@@ -74,8 +93,30 @@ class CharacterController:
         msg = self.loc.error_class_not_found.format(class_name=updated_class.name)
         raise ValueError(msg)
 
+    def remove_class(self, class_name: ClassName):
+        """Remove a class together with the spells learned through it."""
+        self.character.classes = [c for c in self.character.classes if c.name != class_name]
+        self.character.spells.pop(class_name, None)
+        self.unequip_disallowed_items()
+
+    def unequip_disallowed_items(self):
+        """Unequip martial items none of the character's classes allow any more.
+        They stay in the backpack."""
+        equipped = self.character.inventory.equipped
+        for category in ("main_hand", "off_hand", "armor"):
+            item = getattr(equipped, category)
+            if item is not None and not self.can_equip_martial(item):
+                setattr(equipped, category, None)
+
     def can_add_skill_number(self):
         return self.character.level - self.character.get_n_skill()
+
+    def skill_points_left_with(self, char_class: CharClass) -> int:
+        """Skill points left if `char_class` (being added, or an edited copy of a
+        class the character has) were applied. Negative means too many."""
+        existing = self.character.get_class(char_class.name)
+        used = self.character.get_n_skill() - (existing.class_level() if existing else 0)
+        return self.character.level - used - char_class.class_level()
 
     def is_class_added(self, new_class: CharClass | str | None):
         if new_class is None:
@@ -128,7 +169,7 @@ class CharacterController:
                 bonus += 10
             else:
                 bonus += 20
-        # to-do: add other class bonuses to HP, e.g., Guardian
+        bonus += 3 * (self.get_skill_level(ClassName.guardian, "fortress") or 0)
 
         return base_hp + bonus
 
@@ -144,7 +185,7 @@ class CharacterController:
                 bonus += 10
             else:
                 bonus += 20
-        # to-do: add other class bonuses to MP, e.g., Loremaster
+        bonus += 3 * (self.get_skill_level(ClassName.loremaster, "focused") or 0)
 
         return base_mp + bonus
 
@@ -174,10 +215,14 @@ class CharacterController:
             item_bonus += item.bonus_defense
 
         other_bonuses = 0
-        if self.is_class_added(ClassName.rogue):
-            other_bonuses += self.get_skill_level(ClassName.rogue, "dodge")
-
         armor = self.character.inventory.equipped.armor
+        # Rogue's Dodge only works with no shields and no martial armor equipped.
+        equipped = self.character.inventory.equipped
+        has_shield = isinstance(equipped.main_hand, Shield) or isinstance(equipped.off_hand, Shield)
+        has_martial_armor = armor is not None and armor.martial
+        if not has_shield and not has_martial_armor:
+            other_bonuses += self.get_skill_level(ClassName.rogue, "dodge") or 0
+
         if armor:
             if isinstance(armor.defense, int):
                 armor_defense = armor.defense
@@ -217,7 +262,8 @@ class CharacterController:
         return initiative
 
     def can_equip_martial(self, item: Item) -> bool:
-        if not item.martial:
+        # Accessories and plain items have no `martial` field and are never martial.
+        if not getattr(item, "martial", False):
             return True
         if isinstance(item, Weapon):
             return any(c.can_equip_weapon(item.range) for c in self.character.classes)
@@ -228,6 +274,8 @@ class CharacterController:
         return False
 
     def equip_item(self, item: Item):
+        if not self.can_equip_martial(item):
+            raise Exception(self.loc.error_equipping_martial)
         equipped = self.character.inventory.equipped
 
         if isinstance(item, Armor):
@@ -259,30 +307,24 @@ class CharacterController:
                     # both occupied → replace main hand by default
                     equipped.main_hand = item
         elif isinstance(item, Shield):
-            # --- Dual Shieldbearer ---
-            if self.has_skill("dual_shieldbearer"):
-                if equipped.off_hand is None:
-                    equipped.off_hand = item
-                elif isinstance(equipped.off_hand, Shield):
-                    equipped.main_hand = Weapon(
-                        name="twin_shields",
-                        cost=item.cost,
-                        accuracy=[AttributeName.might, AttributeName.might],
-                        bonus_damage=5,
-                        bonus_defense=item.bonus_defense,
-                        bonus_magic_defense=item.bonus_magic_defense,
-                    )
-                else:
-                    equipped.off_hand = item
-
-            # --- Monkey Grip ---
-            elif self.character.has_heroic_skill(HeroicSkillName.monkey_grip):
-                equipped.off_hand = item
-
-            # --- Normal char ---
+            # --- Dual Shieldbearer: a second shield becomes the Twin Shields weapon ---
+            if (self.has_skill("dual_shieldbearer")
+                    and isinstance(equipped.off_hand, Shield)
+                    and equipped.off_hand is not item):
+                equipped.main_hand = Weapon(
+                    name="twin_shields",
+                    cost=item.cost,
+                    accuracy=[AttributeName.might, AttributeName.might],
+                    bonus_damage=5,
+                    bonus_defense=item.bonus_defense,
+                    bonus_magic_defense=item.bonus_magic_defense,
+                )
             else:
                 equipped.off_hand = item
-                if (isinstance(equipped.main_hand, Weapon)
+                # A shield takes a hand: without Monkey Grip a two-handed
+                # weapon can't stay in the main hand.
+                if (not self.character.has_heroic_skill(HeroicSkillName.monkey_grip)
+                        and isinstance(equipped.main_hand, Weapon)
                         and equipped.main_hand.grip_type == "two_handed"):
                     equipped.main_hand = None
 
@@ -305,37 +347,80 @@ class CharacterController:
     def add_item(self, item: Item):
         self.character.inventory.backpack.add_item(item)
 
+    def is_equipped(self, item: Item) -> bool:
+        # Identity, not equality: of two identical daggers only the one in hand counts.
+        return any(equipped is item for equipped in self.equipped_items())
+
     def remove_item(self, item: Item):
         equipped = self.character.inventory.equipped
         for category in ("main_hand", "off_hand", "armor", "accessory"):
-            if getattr(equipped, category) == item:
+            if getattr(equipped, category) is item:
                 setattr(equipped, category, None)
         self.character.inventory.backpack.remove_item(item)
 
+    def can_afford(self, cost: int) -> bool:
+        return self.character.inventory.zenit >= cost
+
+    def spend_zenit(self, amount: int):
+        if amount < 0:
+            raise ValueError(amount)
+        if not self.can_afford(amount):
+            raise ValueError(self.loc.error_not_enough_zenit.format(cost=amount, zenit=self.character.inventory.zenit))
+        self.character.inventory.zenit -= amount
+
+    def load_character(self, character: Character):
+        """Start working on a copy of a saved character, so unsaved edits never
+        leak into the saved-characters list. Raises if its state can't be loaded
+        (the character is still loaded, with a default state)."""
+        self.character = character.model_copy(deep=True)
+        # Repair characters saved before every class got a spell list (e.g. a
+        # class gained through level-up). Done before mark_saved(), so it does
+        # not show up as an unsaved change.
+        self._ensure_spell_lists()
+        try:
+            self.load_state()
+        finally:
+            self.mark_saved()
+
+    def _snapshot(self) -> dict:
+        # Attribute `current` values are derived from base + statuses by
+        # apply_status(), so they are not user edits.
+        derived = {"current"}
+        character = self.character.model_dump(
+            mode="json",
+            exclude={"dexterity": derived, "might": derived, "insight": derived, "willpower": derived},
+        )
+        return {"character": character, "state": self.state.model_dump(mode="json")}
+
+    def mark_saved(self):
+        self._saved_snapshot = self._snapshot()
+
+    def has_unsaved_changes(self) -> bool:
+        return self._saved_snapshot is None or self._saved_snapshot != self._snapshot()
+
     def dump_character(self):
-        for old_file in SAVED_CHARS_DIRECTORY.glob(f"*.{self.character.id}.character.yaml"):
-            old_file.unlink()
-        with Path(
-                SAVED_CHARS_DIRECTORY,
-                f"{self.character.name}.{self.character.id}.character.yaml"
-        ).open("w") as yaml_file:
-            yaml.dump(
-                self.character.model_dump(),
-                yaml_file,
-                sort_keys=False,
-                allow_unicode=True,
-                default_flow_style=False
-            )
+        char_id = self.character.id
+        new_path = Path(
+            SAVED_CHARS_DIRECTORY,
+            f"{safe_filename(self.character.name)}.{char_id}.character.yaml",
+        )
+        dump_yaml(self.character.model_dump(mode="json"), new_path)
+        # Only remove older files (e.g. from before a rename) once the new one is safely written.
+        for old_file in SAVED_CHARS_DIRECTORY.glob(f"*.{char_id}.character.yaml"):
+            if old_file != new_path:
+                old_file.unlink(missing_ok=True)
 
     def dump_avatar(self, image: UploadedFile | None ):
         if image is not None:
-            for old_file in SAVED_CHARS_IMG_DIRECTORY.glob(f"*{self.character.id}.*"):
-                old_file.unlink()
+            char_id = self.character.id
             image_file_path = Path(
                     SAVED_CHARS_IMG_DIRECTORY,
-                    f"{self.character.name}.{self.character.id}{Path(image.name).suffix}"
+                    f"{safe_filename(self.character.name)}.{char_id}{Path(image.name).suffix.lower()}"
             )
-            image_file_path.write_bytes(image.getbuffer())
+            atomic_write(image_file_path, bytes(image.getbuffer()))
+            for old_file in SAVED_CHARS_IMG_DIRECTORY.glob(f"*{char_id}.*"):
+                if old_file != image_file_path:
+                    old_file.unlink(missing_ok=True)
 
     def apply_status(self):
         dex_modifier = 0
@@ -422,13 +507,12 @@ class CharacterController:
                 self.character.willpower.base,
             ]
         )
-        if (
-                self.character.level == 20 and sum_of_attributes < ATTRIBUTE_SUM_AT_LEVEL_20
-        ) or (
-                self.character.level == 40 and sum_of_attributes < ATTRIBUTE_SUM_AT_LEVEL_40
-        ):
-            return True
-
+        # The increase is earned on reaching level 20 / 40 and stays available
+        # until it is taken, so a skipped one is not lost on the next level-up.
+        if self.character.level >= 40:
+            return sum_of_attributes < ATTRIBUTE_SUM_AT_LEVEL_40
+        if self.character.level >= 20:
+            return sum_of_attributes < ATTRIBUTE_SUM_AT_LEVEL_20
         return False
 
     def add_status(self, status: Status):
@@ -476,35 +560,58 @@ class CharacterController:
         return self.current_ip() >= ip_cost
 
     def dump_state(self):
-        with Path(SAVED_STATES_DIRECTORY, f"{self.character.id}.yaml").open("w", encoding="utf-8") as yaml_file:
-            yaml.dump(
-                self.state.model_dump(),
-                yaml_file,
-                sort_keys=False,
-                allow_unicode=True,
-                default_flow_style=False
-            )
+        dump_yaml(self.state.model_dump(mode="json"), Path(SAVED_STATES_DIRECTORY, f"{self.character.id}.yaml"))
+
+    def save(self):
+        """Save both the character and its battle state."""
+        self.dump_character()
+        self.dump_state()
+        self.mark_saved()
 
     def load_state(self):
+        """Load the saved battle state. A character that has never been saved
+        with a state simply starts with a fresh one; a state file that exists
+        but can't be read raises StateLoadError (and also starts fresh)."""
+        state_path = Path(SAVED_STATES_DIRECTORY, f"{self.character.id}.yaml")
+        self.state = CharState()
+        if not state_path.exists():
+            return
         try:
-            with Path(SAVED_STATES_DIRECTORY, f"{self.character.id}.yaml").open('r', encoding="utf-8") as yaml_file:
-                raw_state = yaml.load(yaml_file, Loader=yaml.Loader)
-                self.state = CharState(**dict(raw_state))
-        except:
-            self.state = CharState()
-            raise Exception("Unable to load state. Switching to default.")
+            self.state = CharState(**dict(load_yaml(state_path)))
+        except Exception as e:
+            raise StateLoadError(state_path, e) from e
+
+    def can_level_up(self) -> bool:
+        return self.character.level < MAX_LEVEL
 
     def apply_levelup(self, skill: Skill, class_name: ClassName, new_class: CharClass | None, spells: list[Spell]):
-        self.character.level += 1
+        """Gain one level: one level in `skill`, which belongs either to a class the
+        character already has or to `new_class`, and the spells it grants (added to
+        the spells already known, never replacing them).
+
+        Everything is checked before anything changes, so a refused level-up
+        leaves the character untouched."""
+        if not self.can_level_up():
+            raise ValueError(self.loc.error_invalid_level.format(level=self.character.level + 1))
+
         if self.is_class_added(class_name):
-            for char_class in self.character.classes:
-                if char_class.get_skill(skill.name):
-                    char_class.levelup_skill(skill.name)
-                    break
-        elif new_class is not None:
+            target_class = self.character.get_class(class_name)
+        elif new_class is not None and new_class.name == class_name:
+            target_class = new_class
+        else:
+            raise ValueError(self.loc.error_levelup_skill_unavailable.format(skill=skill.name))
+
+        target_skill = target_class.get_skill(skill.name)
+        if target_skill is None or target_skill.current_level >= target_skill.max_level:
+            raise ValueError(self.loc.error_levelup_skill_unavailable.format(skill=skill.name))
+
+        if target_class is new_class:
             self.add_class(new_class)
+        target_class.levelup_skill(skill.name)
+        self.character.level += 1
         if skill.can_add_spell:
-            self.character.spells[class_name] = spells
+            for spell in spells:
+                self.add_spell(spell, class_name)
 
     def add_heroic_skill(self, skill: HeroicSkill):
         self.character.heroic_skills.append(skill)
@@ -536,17 +643,32 @@ class CharacterController:
                     char_class=ClassName.elementalist,
                 ), ClassName.elementalist)
 
+    # Stat bonuses some qualities add to the item they are put on.
+    QUALITY_EFFECTS: dict[str, dict[str, int]] = {
+        "amulet": {"bonus_magic_defense": 1},
+        "bulwark": {"bonus_defense": 1},
+        "omnishield": {"bonus_defense": 1, "bonus_magic_defense": 1},
+        "initiative_up": {"bonus_initiative": 4},
+    }
+
+    def _change_quality_effects(self, item: Item, quality_name: str, sign: int):
+        for field_name, bonus in self.QUALITY_EFFECTS.get(quality_name, {}).items():
+            setattr(item, field_name, getattr(item, field_name) + sign * bonus)
+
     def apply_quality_effects(self, item: Item, quality: Quality):
-        match quality.name:
-            case "amulet":
-                item.bonus_magic_defense += 1
-            case "bulwark":
-                item.bonus_defense += 1
-            case "omnishield":
-                item.bonus_defense += 1
-                item.bonus_magic_defense += 1
-            case "initiative_up":
-                item.bonus_initiative += 4
+        self._change_quality_effects(item, quality.name, +1)
+
+    def upgrade_item(self, item: Item, quality: Quality, detail: list):
+        """Give `item` a new quality, paying its cost. The old quality's
+        bonuses are taken away first, so replacing a quality never stacks."""
+        self.spend_zenit(quality.cost)
+        for category in ("main_hand", "off_hand", "armor", "accessory"):
+            if getattr(self.character.inventory.equipped, category) is item:
+                self.unequip_item(category)
+        self._change_quality_effects(item, item.quality, -1)
+        item.quality = quality.name
+        item.quality_detail = detail
+        self.apply_quality_effects(item, quality)
 
     def chimerist_max_spells(self) -> int:
         max_n = (self.get_skill_level(ClassName.chimerist, "spell_mimic") or 0) + 2
@@ -562,6 +684,25 @@ class CharacterController:
         if not casting_skill:
             return False
         return casting_skill.current_level > len(self.character.get_spells_by_class(class_name))
+
+    INVENTION_TIERS = ("basic", "advanced", "superior")
+
+    def can_add_invention(self) -> bool:
+        """Each level of Gadgets grants one gadget benefit (a basic, advanced or superior tier)."""
+        return len(self.character.special.inventions) < (
+            self.get_skill_level(ClassName.tinkerer, "gadgets") or 0
+        )
+
+    def is_invention_available(self, invention) -> bool:
+        """A tier can be taken only after the previous tier of the same gadget type."""
+        owned = {i.name for i in self.character.special.inventions}
+        if invention.name in owned:
+            return False
+        gadget_type, _, tier = invention.name.rpartition("_")
+        if tier not in self.INVENTION_TIERS:
+            return True
+        tier_idx = self.INVENTION_TIERS.index(tier)
+        return tier_idx == 0 or f"{gadget_type}_{self.INVENTION_TIERS[tier_idx - 1]}" in owned
 
     def can_add_therioform(self) -> bool:
         return len(self.character.special.therioforms) < (
